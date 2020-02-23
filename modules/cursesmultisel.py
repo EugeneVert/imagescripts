@@ -70,7 +70,7 @@ def MainWindow(stdscr, options, activeopt):
             if options[int(chr(k)) - 1][1] == 'sw':
                 options[int(chr(k)) - 1][2] = '+' if options[int(chr(k)) - 1][2] == ' ' else ' '
             elif options[int(chr(k)) - 1][1] == 'txt':
-                menuitemtext = 'txt ' + str(chr(k)) + ' ) ' + options[int(chr(k))][0] + ' | '
+                menuitemtext = 'txt ' + str(chr(k)) + ' ) ' + options[int(chr(k)) - 1][0] + ' | '
                 inputstr = TextBoxWindowForOption(int(chr(k)) + selector_y - 1, menuitemtext)[:-1]
                 options[int(chr(k)) - 1][2] = inputstr
 
