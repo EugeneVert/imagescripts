@@ -21,10 +21,10 @@ def GetActiveOptions(options, activeopt):
         elif options[i][1] == 'txt' and options[i][2]:
             activeopt.append([options[i][0], options[i][2]])
 
-def Enter_Is_Terminate(k):
-    if  k == 10: # enter
-        k = 7   # terminate
-    return k
+def Enter_Is_Terminate(key):
+    if  key == 10: # enter
+        key = 7   # terminate
+    return key
 
 def TextBoxWindowForOption(win_y, menuitemtext):
     textboxwindow = curses.newwin(1, curses.COLS, win_y, len(menuitemtext))
