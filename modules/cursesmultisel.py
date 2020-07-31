@@ -4,15 +4,6 @@ import curses
 import curses.textpad
 import os
 
-options = [
-        ['aaaa', 'sw',  ' '],
-        ['bbbb', 'txt', 'some text'],
-        ['cccc', 'sw',  ' '],
-        ['dddd', 'sw',  ' ']
-        ]
-
-activeopt = list()
-
 def GetActiveOptions(options, activeopt):
     for i in range(len(options)):
         if options[i][1] == 'sw':
@@ -115,5 +106,14 @@ def DisplayMenu(optionsorig, activeopt):
     curses.wrapper(MainWindow, options, activeopt)
 
 if __name__ == "__main__":
+
+    options = [
+        ['aaaa', 'sw', ' '],
+        ['bbbb', 'txt', 'some text'],
+        ['cccc', 'sw', ' '],
+        ['dddd', 'sw', ' ']
+        ]
+
+    activeopt = list()
     DisplayMenu(options, activeopt)
     print(activeopt)
