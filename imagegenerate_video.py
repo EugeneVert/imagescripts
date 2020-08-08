@@ -4,6 +4,7 @@ import os
 import sys
 import glob
 import stat
+import shutil
 import argparse
 from argparse import RawTextHelpFormatter
 
@@ -20,6 +21,7 @@ def main():
     parser.add_argument('path', nargs='+', help='Path of a file or a folder of files.')
     parser.add_argument('-e', '--extension', default='', help='File extension to filter by.')
     parser.add_argument('-d', '--dimensions', help='Specify video dimensions')
+    parser.add_argument('-b', '--background', default='Black', help='Specify video background')
     args = parser.parse_args()
 
     # Parse paths
@@ -40,23 +42,19 @@ def main():
         for f in files:
             print(f)
         files = [os.path.join(os.getcwd(), path) for path in files]
-        for f in files:
-            print(f)
         files = list(files)
-        image2video(files, args.dimensions)
+        image2video(files, args.background, args.dimensions)
     else:
         for dir in files:
             _files = glob.glob(dir + '*' + args.extension)
             print(_files)
             _files = [os.path.join(os.getcwd(), path) for path in _files]
-            print(_files)
-            _files = list(_files)
             os.chdir(dir)
-            image2video(_files, args.dimensions)
+            image2video(_files, args.background, args.dimensions)
             os.chdir('..')
 
-def image2video(in_files, dimensions=None): # TODO Specify name of out.mp4
-
+def image2video(in_files, background, dimensions=None): # TODO Specify name of out.mp4
+    print(in_files)
     fps = 2
     crf = 12
     img_dir = os.path.dirname(in_files[0])
@@ -70,7 +68,7 @@ def image2video(in_files, dimensions=None): # TODO Specify name of out.mp4
         ffmpeg
         .input(img_dir + '/*' + img_ext, pattern_type='glob', framerate=fps)
         .filter('scale', WH[0], WH[1], force_original_aspect_ratio='decrease')
-        .filter('pad', WH[0], WH[1], '(ow-iw)/2', '(oh-ih)/2', 'Black') # TODO background color calculation
+        .filter('pad', WH[0], WH[1], '(ow-iw)/2', '(oh-ih)/2', background) # TODO background color calculation
         .output(name+'.mp4', crf=crf, preset='veryslow', tune='animation')
         .run()
     )
@@ -115,8 +113,6 @@ done
 """)
     f.write('\n\n\n')
     f.write('cd ./' + name + ' || exit\n')
-    print(WH)
-    print(img_size_dict)
     resize_dict = gen_resize_dict(WH, img_size_dict)
     inv_resize_dict = {}
     for key, value in sorted(resize_dict.items()):
@@ -144,7 +140,10 @@ def list_to_str(list:list):
     return s
 def gen_resize_dict(WH, img_size_dict:dict):
     resize_dict = {}
-    for i in img_size_dict.items():
+    img_size_list = list(img_size_dict.items())
+    path = os.path.dirname(img_size_list[0][0])
+    os.makedirs(path + '/_d', exist_ok=True)
+    for i in img_size_list:
         ratio_w = WH[0]/i[1][0]
         ratio_h = WH[1]/i[1][1]
         if ratio_h == 1 and ratio_w == 1:
@@ -154,8 +153,8 @@ def gen_resize_dict(WH, img_size_dict:dict):
         print(ratio_best)
         i_new_WH = (int(i[1][0] * ratio_best),
                     int(i[1][1] * ratio_best))
-        if i_new_WH < (i[1][0], i[1][1]):
-            print('EEEEEEEEEEEEEE')
+        if ratio_best != 1:
+            shutil.copy2(i[0], path + '/_d')
         name = os.path.basename(i[0])
         resize_dict[name] = i_new_WH
     return resize_dict
