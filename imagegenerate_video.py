@@ -22,6 +22,7 @@ def main():
     parser.add_argument('-e', '--extension', default='', help='File extension to filter by.')
     parser.add_argument('-d', '--dimensions', help='Specify video dimensions')
     parser.add_argument('-b', '--background', default='Black', help='Specify video background')
+    parser.add_argument('-crf', dest='crf', type=int, default=12, help='Specify video CRF')
     args = parser.parse_args()
 
     # Parse paths
@@ -43,20 +44,19 @@ def main():
             print(f)
         files = [os.path.join(os.getcwd(), path) for path in files]
         files = list(files)
-        image2video(files, args.background, args.dimensions)
+        image2video(files, args.background, args.crf, args.dimensions)
     else:
         for dir in files:
             _files = glob.glob(dir + '*' + args.extension)
             print(_files)
             _files = [os.path.join(os.getcwd(), path) for path in _files]
             os.chdir(dir)
-            image2video(_files, args.background, args.dimensions)
+            image2video(_files, args.background, args.crf, args.dimensions)
             os.chdir('..')
 
-def image2video(in_files, background, dimensions=None): # TODO Specify name of out.mp4
+def image2video(in_files, background, crf, dimensions=None): # TODO Specify name of out.mp4
     print(in_files)
     fps = 2
-    crf = 12
     img_dir = os.path.dirname(in_files[0])
     fullname = os.path.basename(sorted(in_files)[0])
     name, img_ext = os.path.splitext(fullname)
@@ -64,6 +64,7 @@ def image2video(in_files, background, dimensions=None): # TODO Specify name of o
     if dimensions:
         WH = dimensions.split('x')
     print("dimensions", dimensions)
+    print("CRF", crf)
     (
         ffmpeg
         .input(img_dir + '/*' + img_ext, pattern_type='glob', framerate=fps)
@@ -102,7 +103,7 @@ def gen_extract_file(WH, img_size_dict): # TODO Specify name of out.mp4 (image2v
     fullname = img_list[0]
     name, ext = os.path.splitext(fullname)
     f = open('extract.sh', 'w')
-    f.write('#!/usr/bin/env bash')
+    f.write('#!/usr/bin/env bash\n')
     f.write("""
 for i in *.mp4
 do
@@ -111,8 +112,9 @@ do
     ffmpeg -i "$i" -r 2 -q:v 1 -qmin 1 -qmax 1 ./"$dirname"/img%03d.png
 done
 """)
-    f.write('\n\n\n')
-    f.write('cd ./' + name + ' || exit\n')
+    f.write('\n')
+    f.write('if [ -d "./' + name + '" ]; then ')
+    f.write('cd ./' + name + ' || exit ; ')
     resize_dict = gen_resize_dict(WH, img_size_dict)
     inv_resize_dict = {}
     for key, value in sorted(resize_dict.items()):
@@ -125,9 +127,10 @@ done
         f.write('mogrify ' +\
                 ' -gravity Center ' +\
                 '-extent ' + str(i[0][0])+'x'+str(i[0][1])+'! ' +\
-                " ".join(map(lambda x: '"'+("img{:03d}"+ext).format(img_list.index(x)+1)+'"', i[1])) + '\n'
+                " ".join(map(lambda x: '"' + ("img{:03d}.png").format(img_list.index(x) + 1) + '"', i[1])) + ' ; '
                 )
-    f.write('cd ..')
+    f.write('cd .. ; ')
+    f.write('fi')
 
     st = os.stat('extract.sh')
     os.chmod('extract.sh', st.st_mode | stat.S_IEXEC)
