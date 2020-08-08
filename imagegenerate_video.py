@@ -109,13 +109,13 @@ for i in *.mp4
 do
     dirname="${i%.*}"
     mkdir "$dirname"
-    ffmpeg -i "$i" -r 2 -q:v 1 -qmin 1 -qmax 1 ./"$dirname"/img%03d.png
+    ffmpeg -i "$i" -r 2 -c:v libwebp -lossless 1 -q:v 60 ./"$dirname"/img%03d.webp
 done
 """)
     f.write('\n')
     f.write('if [ -d "./' + name + '" ]; then ')
     f.write('cd ./' + name + ' || exit ; ')
-    resize_dict = gen_resize_dict(WH, img_size_dict)
+    resize_dict = gen_resize_dict(WH, img_size_dict, img_list)
     inv_resize_dict = {}
     for key, value in sorted(resize_dict.items()):
         if value not in inv_resize_dict:
@@ -127,7 +127,7 @@ done
         f.write('mogrify ' +\
                 ' -gravity Center ' +\
                 '-extent ' + str(i[0][0])+'x'+str(i[0][1])+'! ' +\
-                " ".join(map(lambda x: '"' + ("img{:03d}.png").format(img_list.index(x) + 1) + '"', i[1])) + ' ; '
+                " ".join(map(lambda x: '"' + ("img{:03d}.webp").format(img_list.index(x) + 1) + '"', i[1])) + ' ; '
                 )
     f.write('cd .. ; ')
     f.write('fi')
@@ -141,12 +141,14 @@ def list_to_str(list:list):
         formated = '"'+ str(i) +'" '
         s += formated
     return s
-def gen_resize_dict(WH, img_size_dict:dict):
+def gen_resize_dict(WH: tuple, img_size_dict: dict, img_list: list):
     resize_dict = {}
+    print(img_list)
     img_size_list = list(img_size_dict.items())
     path = os.path.dirname(img_size_list[0][0])
     os.makedirs(path + '/_d', exist_ok=True)
     for i in img_size_list:
+        name = os.path.basename(i[0])
         ratio_w = WH[0]/i[1][0]
         ratio_h = WH[1]/i[1][1]
         if ratio_h == 1 and ratio_w == 1:
@@ -157,11 +159,18 @@ def gen_resize_dict(WH, img_size_dict:dict):
         i_new_WH = (int(i[1][0] * ratio_best),
                     int(i[1][1] * ratio_best))
         if ratio_best != 1:
-            shutil.copy2(i[0], path + '/_d')
-        name = os.path.basename(i[0])
+            outname = ("img{:03d}.webp").format(img_list.index(name) + 1)
+            shutil.copy2(i[0], path + '/_d/' + outname)
         resize_dict[name] = i_new_WH
+    convert_to_webp(path + '/_d/')
     return resize_dict
 
+def convert_to_webp(path):
+    files = glob.glob(path + '/*.webp')
+    for f in files:
+        with Image.open(f) as img:
+            img_name, ext = os.path.splitext(f)
+            img.save(img_name + ".webp", format="webp", quality=95, method=6)
 
 
 if __name__ == '__main__':
