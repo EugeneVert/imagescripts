@@ -3,6 +3,7 @@
 import os
 import sys
 import shutil
+import subprocess
 import imagehash
 from PIL import Image
 from termcolor import colored
@@ -22,9 +23,7 @@ def main():
         try:
             filepath = src_dir + '/' + f
             image = Image.open(filepath)
-            print(filepath)
             image_hash = imagehash.average_hash(image)
-            print(image_hash)
             image.close()
             img_hash_dict[filepath] = image_hash
         except:
@@ -36,21 +35,27 @@ def main():
         sys.exit('')
 
     print(img_hash_dict.keys())
-    images_process(src_dir, img_hash_dict, min_images_in_folder)
+    _img_hash_dict_2, counter = images_process(src_dir, img_hash_dict, min_images_in_folder)
+    print('________\n\n\n\n\n IMG PROCESS OTHER')
+    images_process(src_dir, _img_hash_dict_2, min_images_in_folder, counter)
 
-def images_process(src_dir, img_hash_dict, min_images_in_folder):
+def images_process(src_dir, img_hash_dict, min_images_in_folder, counter_for_folders=0):
     imgs_hash_to_process = img_hash_dict
-    counter_for_folders = 0
+    _img_hash_dict_2 = {}
     while True:
         # print([i[0] for i in img_hash_to_process])
         if len(imgs_hash_to_process) < 1:
             break
         counter_for_folders += 1
-        img = list(imgs_hash_to_process.keys())[0]
-        img_hash = list(imgs_hash_to_process.values())[0]
-        print('IMAGE: ' + img)
+        img = list(sorted(imgs_hash_to_process.items()))[0]
+        img_name = img[0]
+        img_hash = img[1]
+        print('IMAGE: ' + img_name)
         # simillars, hash_diff_list = image_find_simillar(img_hash, img_hash_to_process)
-        simillars = image_find_simillar(img_hash, imgs_hash_to_process)
+        print(imgs_hash_to_process.keys())
+        simillars = image_find_simillar(img, imgs_hash_to_process, _img_hash_dict_2)
+        print(imgs_hash_to_process.keys())
+        print(simillars.keys())
         # mv_flag = None
         for i in list(simillars.items()):
             imgs_hash_to_process.pop(i[0])
@@ -65,16 +70,67 @@ def images_process(src_dir, img_hash_dict, min_images_in_folder):
         # if mv_flag:
         #     dir_target = src_dir + '/' + str(counter_for_folders)
         #     images_sort_by_hash(simillars, dir_target)
+    return _img_hash_dict_2, counter_for_folders
 
-
-def image_find_simillar(orig_hash, img_hash_dict):
+def image_find_simillar(orig, img_hash_dict, _img_hash_dict_2={}, mode=0):
+    print('find similar for: ', orig[0])
     img_simillar = {}
+    _img_hash_dict_ex = {}
+    img_hash_dict_copy = img_hash_dict.copy()
+    imageviewer = str(subprocess.check_output('xdg-mime query default image/png', shell=True))\
+        [2:-3].split('.')[0]
     # hash_diff_list = []
-    for ihlist in img_hash_dict.items():
+    for ihlist in sorted(img_hash_dict_copy.items()):
+        if ihlist[0] in _img_hash_dict_2.keys():
+            continue
+        if ihlist[0] in _img_hash_dict_ex.keys():
+            continue
         img_hash = ihlist[1]
+        orig_hash = orig[1]
         hash_diff = img_hash - orig_hash
-        if hash_diff < 9:
-            img_simillar[ihlist[0]] = ihlist[1]
+        if mode == 1:
+            if hash_diff < 5:
+                img_simillar[ihlist[0]] = ihlist[1]
+
+        elif hash_diff < 12:
+            if hash_diff < 9:
+                img_simillar[ihlist[0]] = ihlist[1]
+            else:
+                print("Hash diff " + str(hash_diff) + ">" + "8" +\
+                      '.\nPlease confirm simillarity. Opening images via ' +\
+                      imageviewer + ':\nOrig: ' + orig[0] + '\n    ' + ihlist[0])
+
+                sp_orig = subprocess.Popen(imageviewer +\
+                                           ' "' + orig[0] + '"',
+                                           stdout=subprocess.PIPE, shell=True)
+                sp_simi = subprocess.Popen(imageviewer +\
+                                           ' "' + ihlist[0] + '"',
+                                           stdout=subprocess.PIPE, shell=True)
+                inp_are_simillar = input('Are these images simillar? Y(es)/N(o)/E(xclude)')
+                inp_are_simillar.lower()
+                if inp_are_simillar in ('y', ''):
+                    img_simillar[ihlist[0]] = ihlist[1]
+                    in_simillars = image_find_simillar(ihlist, img_hash_dict, {}, 1)
+                    for i in list(in_simillars.items()):
+                        print(i[0])
+                        if i[0] not in img_simillar:
+                            img_simillar[i[0]] = i[1]
+                            _img_hash_dict_ex[i[0]] = i[1]
+                elif inp_are_simillar == 'e':
+                    sp_orig.kill()
+                    sp_simi.kill()
+                    break
+                else:
+                    print('Finding another simillars')
+                    ex_simillars = image_find_simillar(ihlist, img_hash_dict, {}, 1)
+                    for i in list(ex_simillars.items()):
+                        print(i[0])
+                        if i[0] in img_simillar:
+                            img_simillar.pop(i[0])
+                        img_hash_dict.pop(i[0])
+                        _img_hash_dict_2[i[0]] = i[1]
+                sp_orig.kill()
+                sp_simi.kill()
             # hash_diff_list.append(hash_diff)
     return img_simillar #, hash_diff_list
 
