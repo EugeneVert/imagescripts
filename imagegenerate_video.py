@@ -12,6 +12,8 @@ from argparse import RawTextHelpFormatter
 from PIL import Image
 # video creation
 import ffmpeg
+# orig of resized images arhiving
+import zipfile
 
 def main():
     parser = argparse.ArgumentParser(description=\
@@ -60,24 +62,22 @@ def image2video(in_files, background, crf, dimensions=None): # TODO Specify name
     img_dir = os.path.dirname(in_files[0])
     fullname = os.path.basename(sorted(in_files)[0])
     name, img_ext = os.path.splitext(fullname)
-    WH, img_size_dict = images_size_max(in_files)
+    WH, img_size_dict = images_size_targ(in_files)
     if dimensions:
-        WH = dimensions.split('x')
-    print("dimensions", dimensions)
+        WH = tuple(map(int, dimensions.split('x')))
     print("CRF", crf)
+    print('\n\n\n')
     (
         ffmpeg
-        .input(img_dir + '/*' + img_ext, pattern_type='glob', framerate=fps)
+        .input((img_dir + '/*' + img_ext).replace('[','\[').replace(']','\]'), pattern_type='glob', framerate=fps)
         .filter('scale', WH[0], WH[1], force_original_aspect_ratio='decrease')
         .filter('pad', WH[0], WH[1], '(ow-iw)/2', '(oh-ih)/2', background) # TODO background color calculation
         .output(name+'.mp4', crf=crf, preset='veryslow', tune='animation')
         .run()
     )
-    gen_extract_file(WH, img_size_dict)
+    gen_extract_file(WH, img_size_dict, name)
 
-    print('output')
-
-def images_size_max(images):
+def images_size_targ(images):
     img_size_dict = {}
     for i in images:
         # TODO Is image check
@@ -98,31 +98,34 @@ def list_most_frequent(List):
             _res = i
     return _res
 
-def gen_extract_file(WH, img_size_dict): # TODO Specify name of out.mp4 (image2video)
+def gen_extract_file(WH, img_size_dict, out_dname): # TODO Specify name of out.mp4 (image2video)
     img_list = [os.path.basename(i) for i in sorted(img_size_dict.keys())]
     fullname = img_list[0]
     name, ext = os.path.splitext(fullname)
-    f = open('extract.sh', 'w')
+
+    f = open('frames.sh', 'w')
     f.write('#!/usr/bin/env bash\n')
     f.write("""
 for i in *.mp4
 do
     dirname="${i%.*}"
     mkdir "$dirname"
-    ffmpeg -i "$i" -r 2 -c:v libwebp -lossless 1 -q:v 60 ./"$dirname"/img%03d.webp
+    ffmpeg -i "$i" -r 2 -c:v libwebp -qscale 95 -qmin 1 -qmax 1 ./"$dirname"/img%03d.webp
 done
 """)
+    f.close()
+
+    f = open('transform.sh', 'w')
     f.write('\n')
     f.write('if [ -d "./' + name + '" ]; then ')
     f.write('cd ./' + name + ' || exit ; ')
-    resize_dict = gen_resize_dict(WH, img_size_dict, img_list)
+    resize_dict = gen_resize_dict(WH, img_size_dict, img_list, out_dname)
     inv_resize_dict = {}
     for key, value in sorted(resize_dict.items()):
         if value not in inv_resize_dict:
             inv_resize_dict[value] = [key]
         else:
             inv_resize_dict[value].append(key)
-    print(inv_resize_dict)
     for i in inv_resize_dict.items():
         f.write('mogrify ' +\
                 ' -gravity Center ' +\
@@ -131,47 +134,53 @@ done
                 )
     f.write('cd .. ; ')
     f.write('fi')
-
-    st = os.stat('extract.sh')
-    os.chmod('extract.sh', st.st_mode | stat.S_IEXEC)
-   
+    f.close()
+  
 def list_to_str(list:list):
     s = str()
     for i in list:
         formated = '"'+ str(i) +'" '
         s += formated
     return s
-def gen_resize_dict(WH: tuple, img_size_dict: dict, img_list: list):
+
+def gen_resize_dict(WH: tuple, img_size_dict: dict, img_list: list, out_dname='_d'):
     resize_dict = {}
-    print(img_list)
     img_size_list = list(img_size_dict.items())
     path = os.path.dirname(img_size_list[0][0])
-    os.makedirs(path + '/_d', exist_ok=True)
+    os.makedirs(path + '/' + out_dname, exist_ok=True)
     for i in img_size_list:
         name = os.path.basename(i[0])
+        outname = ("img{:03d}.webp").format(img_list.index(name) + 1)
         ratio_w = WH[0]/i[1][0]
         ratio_h = WH[1]/i[1][1]
         if ratio_h == 1 and ratio_w == 1:
             continue
-        print([ratio_w, ratio_h])
+        print("filename " + name + '\n' + outname)
         ratio_best = min(ratio_w, ratio_h)
         print(ratio_best)
         i_new_WH = (int(i[1][0] * ratio_best),
                     int(i[1][1] * ratio_best))
-        if ratio_best != 1:
-            outname = ("img{:03d}.webp").format(img_list.index(name) + 1)
-            shutil.copy2(i[0], path + '/_d/' + outname)
+        if ratio_best > 1.15 or ratio_best < 0.95:
+            shutil.copy2(i[0], path + '/' + out_dname + '/' + outname)
         resize_dict[name] = i_new_WH
-    convert_to_webp(path + '/_d/')
+    print('Converting _d to webp')
+    after_gen(path, out_dname)
     return resize_dict
 
-def convert_to_webp(path):
-    files = glob.glob(path + '/*.webp')
+def after_gen(path, out_dname):
+    path_d = path + '/' + out_dname
+    files = glob.glob(out_dname + '/*.webp')
+    print(files)
     for f in files:
-        with Image.open(f) as img:
-            img_name, ext = os.path.splitext(f)
-            img.save(img_name + ".webp", format="webp", quality=95, method=6)
+        img = Image.open(f)
+        img_name, ext = os.path.splitext(f)
+        img.save(img_name + ".webp", format="webp", quality=90, method=6)
+        print('done for image', f)
+    make_archive(path, out_dname)
 
+def make_archive(path, path_d):
+    shutil.make_archive(path_d, 'zip', path, os.path.basename(path_d) + '/')
+    shutil.rmtree(path_d)
 
 if __name__ == '__main__':
     main()
