@@ -115,26 +115,27 @@ done
 """)
     f.close()
 
-    f = open('transform.sh', 'w')
-    f.write('\n')
-    f.write('if [ -d "./' + name + '" ]; then ')
-    f.write('cd ./' + name + ' || exit ; ')
     resize_dict = gen_resize_dict(WH, img_size_dict, img_list, out_dname)
     inv_resize_dict = {}
-    for key, value in sorted(resize_dict.items()):
-        if value not in inv_resize_dict:
-            inv_resize_dict[value] = [key]
-        else:
-            inv_resize_dict[value].append(key)
-    for i in inv_resize_dict.items():
-        f.write('mogrify ' +\
-                ' -gravity Center ' +\
-                '-extent ' + str(i[0][0])+'x'+str(i[0][1])+'! ' +\
-                " ".join(map(lambda x: '"' + ("img{:03d}.webp").format(img_list.index(x) + 1) + '"', i[1])) + ' ; '
-                )
-    f.write('cd .. ; ')
-    f.write('fi')
-    f.close()
+    if resize_dict:
+        f = open('transform.sh', 'w')
+        f.write('\n')
+        f.write('if [ -d "./' + name + '" ]; then ')
+        f.write('cd ./' + name + ' || exit ; ')
+        for key, value in sorted(resize_dict.items()):
+            if value not in inv_resize_dict:
+                inv_resize_dict[value] = [key]
+            else:
+                inv_resize_dict[value].append(key)
+        for i in inv_resize_dict.items():
+            f.write('mogrify ' +\
+                    ' -gravity Center ' +\
+                    '-extent ' + str(i[0][0])+'x'+str(i[0][1])+'! ' +\
+                    " ".join(map(lambda x: '"' + ("img{:03d}.webp").format(img_list.index(x) + 1) + '"', i[1])) + ' ; '
+                    )
+        f.write('cd .. ; ')
+        f.write('fi')
+        f.close()
   
 def list_to_str(list:list):
     s = str()
@@ -174,12 +175,13 @@ def after_gen(path, out_dname):
     for f in files:
         img = Image.open(f)
         img_name, ext = os.path.splitext(f)
-        img.save(img_name + ".webp", format="webp", quality=90, method=6)
+        img.save(img_name + ".webp", format="webp", quality=92, method=6)
         print('done for image', f)
     make_archive(path, out_dname)
 
 def make_archive(path, path_d):
-    shutil.make_archive(path_d, 'zip', path, os.path.basename(path_d) + '/')
+    if os.listdir(path_d):
+        shutil.make_archive(path_d, 'zip', path, os.path.basename(path_d) + '/')
     shutil.rmtree(path_d)
 
 if __name__ == '__main__':
