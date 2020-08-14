@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+#
+# 2020 Eugene Vert; eugene.a.vert@gmail.com
 
 import os
 import sys
