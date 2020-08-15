@@ -27,6 +27,7 @@ def main():
     parser.add_argument('-d', '--dimensions', help='Specify video dimensions')
     parser.add_argument('-b', '--background', default='Black', help='Specify video background')
     parser.add_argument('-crf', dest='crf', type=int, default=12, help='Specify video CRF')
+    parser.add_argument('-r', '--fps', dest='fps', type=int, default=2, help='Specify video framerate')
     args = parser.parse_args()
 
     # Parse paths
@@ -48,19 +49,18 @@ def main():
             print(f)
         files = [os.path.join(os.getcwd(), path) for path in files]
         files = list(files)
-        image2video(files, args.background, args.crf, args.dimensions)
+        image2video(files, args.background, args.crf, args.fps, args.dimensions)
     else:
         for dir in files:
             _files = glob.glob(dir + '*' + args.extension)
             print(_files)
             _files = [os.path.join(os.getcwd(), path) for path in _files]
             os.chdir(dir)
-            image2video(_files, args.background, args.crf, args.dimensions)
+            image2video(_files, args.background, args.crf, args.fps, args.dimensions)
             os.chdir('..')
 
-def image2video(in_files, background, crf, dimensions=None): # TODO Specify name of out.mp4
+def image2video(in_files, background, crf, fps, dimensions=None): # TODO Specify name of out.mp4
     print(in_files)
-    fps = 2
     img_dir = os.path.dirname(in_files[0])
     fullname = os.path.basename(sorted(in_files)[0])
     name, img_ext = os.path.splitext(fullname)
