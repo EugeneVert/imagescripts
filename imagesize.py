@@ -28,7 +28,7 @@ def main():
     parser.add_argument('-nonimg', action='store_true', help="""don't move non images to "mv" folder \n""")
     parser.add_argument('-kpng', action='store_true', help="Keep (Don't convet) png \n")
     parser.add_argument('-c:q', dest='quality', default=int(90), help='Png convert quality \n (default: %(default)s)')
-    parser.add_argument('-resize', dest='size', default=int(3508), help='Resize to size. \n (default: %(default)s)')
+    parser.add_argument('-resize', dest='size', type=int, default=int(3508), help='Resize to size. \n (default: %(default)s)')
     parser.add_argument('-o', dest="out_dir", type=str, default=str('./test'), help="Output dir \n (default: %(default)s)")
     args = parser.parse_args()
 
@@ -85,14 +85,14 @@ def files_process(src_dir: str, filesindir: List[str], args):
                     print(colored('making image smaller', 'yellow'))
                     img.img.thumbnail(size_target, Image.LANCZOS)
 
-            quality = args.quality
-            if f.endswith('.png'):
-                if args.kpng:
-                    img_save(img, out_dir, quality, 'png')
-                else:
-                    img_save(img, out_dir, quality, 'jpg')
-            if f.endswith('.jpg'):
+        quality = args.quality
+        if f.endswith('.png'):
+            if args.kpng:
+                img_save(img, out_dir, quality, 'png')
+            else:
                 img_save(img, out_dir, quality, 'jpg')
+        if f.endswith('.jpg'):
+            img_save(img, out_dir, quality, 'jpg')
 
 def img_save(img: Img, out_dir, quality, ext: str):
     path_split = os.path.splitext(img.name)
