@@ -27,7 +27,7 @@ def main():
     parser.add_argument('-d', '--dimensions', help='Specify video dimensions')
     parser.add_argument('-b', '--background', default='Black', help='Specify video background')
     parser.add_argument('-crf', dest='crf', type=int, default=12, help='Specify video CRF')
-    parser.add_argument('-r', '--fps', dest='fps', type=int, default=2, help='Specify video framerate')
+    parser.add_argument('-r', '--fps', dest='fps', type=int, default=2, help='Specify video framerate') # NOTE fps default value check on gen_extract_file in image2video
     args = parser.parse_args()
 
     # Parse paths
@@ -77,7 +77,8 @@ def image2video(in_files, background, crf, fps, dimensions=None): # TODO Specify
         .output(name+'.mp4', crf=crf, preset='veryslow', tune='animation')
         .run()
     )
-    gen_extract_file(WH, img_size_dict, name)
+    if fps == 2:
+        gen_extract_file(WH, img_size_dict, name, fps)
 
 def images_size_targ(images):
     img_size_dict = {}
@@ -100,7 +101,7 @@ def list_most_frequent(List):
             _res = i
     return _res
 
-def gen_extract_file(WH, img_size_dict, out_dname): # TODO Specify name of out.mp4 (image2video)
+def gen_extract_file(WH, img_size_dict, out_dname, fps): # TODO Specify name of out.mp4 (image2video)
     img_list = [os.path.basename(i) for i in sorted(img_size_dict.keys())]
     fullname = img_list[0]
     name, ext = os.path.splitext(fullname)
@@ -110,11 +111,11 @@ def gen_extract_file(WH, img_size_dict, out_dname): # TODO Specify name of out.m
     f.write("""
 for i in *.mp4
 do
-    dirname="${i%.*}"
+    dirname="${{i%.*}}"
     mkdir "$dirname"
-    ffmpeg -i "$i" -r 2 -c:v libwebp -qscale 95 -qmin 1 -qmax 1 ./"$dirname"/img%03d.webp
+    ffmpeg -i "$i" -r {0} -c:v libwebp -qscale 95 -qmin 1 -qmax 1 ./"$dirname"/img%03d.webp
 done
-""")
+""".format(fps))
     f.close()
 
     resize_dict = gen_resize_dict(WH, img_size_dict, img_list, out_dname)

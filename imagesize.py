@@ -27,7 +27,7 @@ def main():
     parser.add_argument('-ask', action='store_true', help='Ask resize for each resizeble \n')
     parser.add_argument('-nonimg', action='store_true', help="""don't move non images to "mv" folder \n""")
     parser.add_argument('-kpng', action='store_true', help="Keep (Don't convet) png \n")
-    parser.add_argument('-c:q', dest='quality', default=int(90), help='Png convert quality \n (default: %(default)s)')
+    parser.add_argument('-c:q', dest='quality', type=int, default=int(90), help='Png convert quality \n (default: %(default)s)')
     parser.add_argument('-resize', dest='size', type=int, default=int(3508), help='Resize to size. \n (default: %(default)s)')
     parser.add_argument('-o', dest="out_dir", type=str, default=str('./test'), help="Output dir \n (default: %(default)s)")
     args = parser.parse_args()
@@ -105,7 +105,7 @@ def img_save(img: Img, out_dir, quality, ext: str):
     # JPEG
     if i_ext == 'jpg':
         if ext == 'jpg':
-            img.img.save(out_path, quality=95, subsampling='keep', optimize=True)
+            img.img.save(out_path, quality=85, subsampling='keep', optimize=True)
         elif ext == 'webp':
             img.img.save(out_path, quality=quality + 2, method=6)
     # PNG
