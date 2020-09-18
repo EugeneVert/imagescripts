@@ -11,7 +11,7 @@ from modules.cursesmultisel import DisplayMenu
 OPTIONS = [
     ['sort png', 'sw'],
     # ['mv png less that', 'txt', '1024'],
-    ['mv png size Mb', 'txt', '1.2'],
+    ['mv png size MiB', 'txt', '1.2'],
     ['mv png size px', 'txt', '1754'],
     ['mv img size px', 'txt', '3508'],
     ['move non-images to ./mv', 'sw'],
@@ -30,7 +30,7 @@ def file_move(srcdir: str, filename: str, dirname: str, msg: str = ''):
     os.rename(srcdir + '/' + filename, srcdir + '/' + dirname + '/' + filename)
 
 def process_files(filesindir, targetdir, sizetarg, png_sort,
-                  png_sizetarg_Mb, png_sizetarg_px, nonimagetomv):
+                  png_sizetarg_MiB, png_sizetarg_px, nonimagetomv):
     for i in filesindir:
         img = None
 
@@ -65,10 +65,10 @@ def process_files(filesindir, targetdir, sizetarg, png_sort,
         # if png_sort and not os.path.exists(path_png_mv_resizebles):
         #     os.mkdir(path_png_mv_resizebles)
         #     print(colored('Creating dir ./pngs/Resizeble_' + str(png_sizetarg), 'green'))
-        path_png_mv_size = targetdir + '/pngs/Size_' + str(png_sizetarg_Mb) + '/'
+        path_png_mv_size = targetdir + '/pngs/Size_' + str(png_sizetarg_MiB) + '/'
         if png_sort and not os.path.exists(path_png_mv_size):
             os.mkdir(path_png_mv_size)
-            print(colored('Creating dir ./pngs/Resizeble_' + str(png_sizetarg_Mb), 'green'))
+            print(colored('Creating dir ./pngs/Resizeble_' + str(png_sizetarg_MiB), 'green'))
 
         imgsizer = img.size
         print(imgsizer)
@@ -80,20 +80,20 @@ def process_files(filesindir, targetdir, sizetarg, png_sort,
                 #     file_move(targetdir, i, 'pngs/Resizeble_' + str(png_sizetarg),
                 #               'To pngs/Resizeble_.../')
                 #     continue
-                if png_filesize > png_sizetarg_Mb:
+                if png_filesize > png_sizetarg_MiB:
                     if int(imgsizer[0]) > sizetarg or int(imgsizer[1]) > sizetarg:
-                        file_move(targetdir, i, 'pngs/Size_' + str(png_sizetarg_Mb) +
+                        file_move(targetdir, i, 'pngs/Size_' + str(png_sizetarg_MiB) +
                                   '/Resizeble_' + str(sizetarg),
                                   colored('To pngs/Size_...', 'blue') +
                                   colored('/Resizeble_...', 'yellow'))
                         continue
                     if int(imgsizer[0]) < png_sizetarg_px and int(imgsizer[1]) < png_sizetarg_px:
-                        file_move(targetdir, i, 'pngs/Size_' + str(png_sizetarg_Mb)
+                        file_move(targetdir, i, 'pngs/Size_' + str(png_sizetarg_MiB)
                                   + '/Smaller_' + str(png_sizetarg_px),
                                   colored('To pngs/Size...', 'blue') +
                                   colored('/Smaller...', 'cyan'))
                         continue
-                    file_move(targetdir, i, 'pngs/Size_' + str(png_sizetarg_Mb),
+                    file_move(targetdir, i, 'pngs/Size_' + str(png_sizetarg_MiB),
                               colored('To pngs/Size_.../', 'blue'))
                     continue
                 file_move(targetdir, i, 'pngs', 'To pngs/')
@@ -139,7 +139,7 @@ def main(options):
     sizetarg = ''
     png_sort = 0
     # png_sizetarg = ''
-    png_sizetarg_Mb = ''
+    png_sizetarg_MiB = ''
     png_sizetarg_px = ''
     nonimagetomv = 0
 
@@ -150,9 +150,9 @@ def main(options):
         # if 'mv png less that' in element:
         #     png_sizetarg = int(element[1])
         #     print('png_sizetarg', png_sizetarg)
-        if 'mv png size Mb' in element:
-            png_sizetarg_Mb = float(element[1])
-            print('png_sizetarg_Mb', png_sizetarg_Mb)
+        if 'mv png size MiB' in element:
+            png_sizetarg_MiB = float(element[1])
+            print('png_sizetarg_MiB', png_sizetarg_MiB)
         if 'mv png size px' in element:
             png_sizetarg_px = int(element[1])
             print('png_sizetarg_px', png_sizetarg_px)
@@ -162,9 +162,9 @@ def main(options):
     # if not png_sizetarg:
     #     print(colored('Error, no png resize target! default - 1024 set', 'red'))
     #     png_sizetarg = 1024
-    if not png_sizetarg_Mb:
-        print(colored('Error, no png size Mb target! default - 1 Mb set', 'red'))
-        png_sizetarg_Mb = 1
+    if not png_sizetarg_MiB:
+        print(colored('Error, no png size MiB target! default - 1 MiB set', 'red'))
+        png_sizetarg_MiB = 1
     if not png_sizetarg_px:
         print(colored('Error, no png size px target! default - 1024 px set', 'red'))
         png_sizetarg_px = 1024
@@ -178,7 +178,7 @@ def main(options):
                   sizetarg,
                   png_sort,
                   # png_sizetarg,
-                  png_sizetarg_Mb,
+                  png_sizetarg_MiB,
                   png_sizetarg_px,
                   nonimagetomv)
 
