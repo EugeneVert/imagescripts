@@ -16,8 +16,10 @@
 import os
 import sys
 import argparse
+import shutil
+import re
 from typing import List
-from PIL import Image
+from PIL import Image, ImageStat
 from termcolor import colored
 
 def main():
@@ -27,6 +29,7 @@ def main():
     parser.add_argument('-ask', action='store_true', help='Ask resize for each resizeble \n')
     parser.add_argument('-nonimg', action='store_true', help="""don't move non images to "mv" folder \n""")
     parser.add_argument('-kpng', action='store_true', help="Keep (Don't convet) png \n")
+    parser.add_argument('-msize', dest='msize', default="150K", help="Min size to process")
     parser.add_argument('-c:q', dest='quality', type=int, default=int(90), help='Png convert quality \n (default: %(default)s)')
     parser.add_argument('-resize', dest='size', type=int, default=int(3508), help='Resize to size. \n (default: %(default)s)')
     parser.add_argument('-o', dest="out_dir", type=str, default=str('./test'), help="Output dir \n (default: %(default)s)")
@@ -69,11 +72,17 @@ def files_process(src_dir: str, filesindir: List[str], args):
                 print(colored("Moving to mv dir", 'red'))
                 file_move(src_dir, f, 'mv')
             continue
+
         print(f)
         print(img.size)
         if f.endswith('.png') and img.img.get_format_mimetype() == 'image/apng':
             if not args.nonimg:
                 file_move(src_dir, f, 'mv')
+            continue
+        min_filesize = parse_size(args.msize)
+        if os.path.getsize(f) < min_filesize:
+            print(colored("Copying to out dir", 'blue'))
+            shutil.copy2(f, args.out_dir)
             continue
 
         size_target = args.size
@@ -91,8 +100,12 @@ def files_process(src_dir: str, filesindir: List[str], args):
                 img_save(img, out_dir, quality, 'png')
             else:
                 img_save(img, out_dir, quality, 'jpg')
-        if f.endswith('.jpg'):
-            img_save(img, out_dir, quality, 'jpg')
+        elif f.endswith('.jpg'):
+            if detect_color_image(img.img) in ('grayscale', 'blackandwhite'):
+                print('Black and white image, convert jpg to png')
+                img_save(img, out_dir, quality, 'png')
+            else:
+                img_save(img, out_dir, quality, 'jpg')
 
 def img_save(img: Img, out_dir, quality, ext: str):
     path_split = os.path.splitext(img.name)
@@ -105,7 +118,10 @@ def img_save(img: Img, out_dir, quality, ext: str):
     # JPEG
     if i_ext == 'jpg':
         if ext == 'jpg':
-            img.img.save(out_path, quality=85, subsampling='keep', optimize=True)
+            img.img.save(out_path, quality=90, subsampling='keep', optimize=True)
+        elif ext == 'png':
+            img.img = img.img.convert(mode='P', palette=Image.ADAPTIVE)
+            img.img.save(out_path, optimize=True)
         elif ext == 'webp':
             img.img.save(out_path, quality=quality + 2, method=6)
     # PNG
@@ -131,6 +147,43 @@ def file_move(srcdir: str, filename: str, dirname: str, msg: str = ''):
     if not os.path.exists(srcdir + '/' + dirname):
         os.mkdir(srcdir + '/' + dirname)
     os.rename(srcdir + '/' + filename, srcdir + '/' + dirname + '/' + filename)
+
+def parse_size(size: str):
+    units = {"B": 1, "K": 2**10, "M": 2**20}
+    size = size.upper()
+    if not re.match(r' ', size):
+        size = re.sub(r'([BKM]?)$', r' \1', size)
+    number, unit = [string.strip() for string in size.split()]
+    return int(float(number) * units[unit])
+
+# https://stackoverflow.com/questions/20068945/detect-if-image-is-color-grayscale-or-black-and-white-with-python-pil
+# By Noah Whitman
+def detect_color_image(image, thumb_size=40, MSE_cutoff=22, adjust_color_bias=True):
+    pil_img = image
+    bands = pil_img.getbands()
+    if bands == ('R','G','B') or bands== ('R','G','B','A'):
+        thumb = pil_img.resize((thumb_size,thumb_size))
+        SSE, bias = 0, [0,0,0]
+        if adjust_color_bias:
+            bias = ImageStat.Stat(thumb).mean[:3]
+            bias = [b - sum(bias)/3 for b in bias ]
+        for pixel in thumb.getdata():
+            mu = sum(pixel)/3
+            SSE += sum((pixel[i] - mu - bias[i])*(pixel[i] - mu - bias[i]) for i in [0,1,2])
+        MSE = float(SSE)/(thumb_size*thumb_size)
+        if MSE <= MSE_cutoff:
+            print("grayscale")
+            return "grayscale"
+        else:
+            print("Color")
+            return "color"
+        print("( MSE=",MSE,")")
+    elif len(bands)==1:
+        print("Black and white", bands)
+        return "blackandwhite"
+    else:
+        print("Don't know...", bands)
+        return "unknown"
 
 if __name__ == '__main__':
     main()
