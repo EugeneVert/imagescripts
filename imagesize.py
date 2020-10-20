@@ -29,7 +29,8 @@ def main():
     parser.add_argument('-ask', action='store_true', help='Ask resize for each resizeble \n')
     parser.add_argument('-nonimg', action='store_true', help="""don't move non images to "mv" folder \n""")
     parser.add_argument('-kpng', action='store_true', help="Keep (Don't convet) png \n")
-    parser.add_argument('-msize', dest='msize', default="150K", help="Min size to process")
+    parser.add_argument('-bnwjpg', action='store_true', help="Don't convert Black&White jpg's to png \n")
+    parser.add_argument('-msize', dest='fsize_min', default="150K", help="Min filesize to process")
     parser.add_argument('-c:q', dest='quality', type=int, default=int(90), help='Png convert quality \n (default: %(default)s)')
     parser.add_argument('-resize', dest='size', type=int, default=int(3508), help='Resize to size. \n (default: %(default)s)')
     parser.add_argument('-o', dest="out_dir", type=str, default=str('./test'), help="Output dir \n (default: %(default)s)")
@@ -79,8 +80,8 @@ def files_process(src_dir: str, filesindir: List[str], args):
             if not args.nonimg:
                 file_move(src_dir, f, 'mv')
             continue
-        min_filesize = parse_size(args.msize)
-        if os.path.getsize(f) < min_filesize:
+        filesize_min_to_process = parse_size(args.fsize_min)
+        if os.path.getsize(f) < filesize_min_to_process and not f.endswith('png'):
             print(colored("Copying to out dir", 'blue'))
             shutil.copy2(f, args.out_dir)
             continue
@@ -98,10 +99,12 @@ def files_process(src_dir: str, filesindir: List[str], args):
         if f.endswith('.png'):
             if args.kpng:
                 img_save(img, out_dir, quality, 'png')
+            elif image_has_transparency(img.img):
+                img_save(img, out_dir, quality, 'webp')
             else:
                 img_save(img, out_dir, quality, 'jpg')
         elif f.endswith('.jpg'):
-            if detect_color_image(img.img) in ('grayscale', 'blackandwhite'):
+            if not args.bnwjpg and image_iscolorfull(img.img) in ('grayscale', 'blackandwhite'):
                 print('Black and white image, convert jpg to png')
                 img_save(img, out_dir, quality, 'png')
             else:
@@ -112,7 +115,7 @@ def img_save(img: Img, out_dir, quality, ext: str):
     out_path = out_dir + path_split[0] + '.' + ext
     i_ext = path_split[1][1:]
     # png  -> png, jpg, webp
-    # jpg  -> jpg, webp
+    # jpg  -> png, jpg, webp
     # webp -> jpg, webp
 
     # JPEG
@@ -158,7 +161,7 @@ def parse_size(size: str):
 
 # https://stackoverflow.com/questions/20068945/detect-if-image-is-color-grayscale-or-black-and-white-with-python-pil
 # By Noah Whitman
-def detect_color_image(image, thumb_size=40, MSE_cutoff=22, adjust_color_bias=True):
+def image_iscolorfull(image, thumb_size=40, MSE_cutoff=22, adjust_color_bias=True):
     pil_img = image
     bands = pil_img.getbands()
     if bands == ('R','G','B') or bands== ('R','G','B','A'):
@@ -172,7 +175,7 @@ def detect_color_image(image, thumb_size=40, MSE_cutoff=22, adjust_color_bias=Tr
             SSE += sum((pixel[i] - mu - bias[i])*(pixel[i] - mu - bias[i]) for i in [0,1,2])
         MSE = float(SSE)/(thumb_size*thumb_size)
         if MSE <= MSE_cutoff:
-            print("grayscale")
+            print("Grayscale")
             return "grayscale"
         else:
             print("Color")
@@ -184,6 +187,11 @@ def detect_color_image(image, thumb_size=40, MSE_cutoff=22, adjust_color_bias=Tr
     else:
         print("Don't know...", bands)
         return "unknown"
+
+def image_has_transparency(image: Image.Image):
+    if len(image.getbands()) < 4: # if 'A' not in image.getbands()
+        return False
+    return True if image.getextrema()[3][0] != 255 else False
 
 if __name__ == '__main__':
     main()
