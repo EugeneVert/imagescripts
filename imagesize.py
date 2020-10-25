@@ -26,14 +26,15 @@ def main():
     parser = argparse.ArgumentParser(description='Reduce images size',
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('path', nargs='?', help="Dir with images")
-    parser.add_argument('-ask', action='store_true', help='Ask resize for each resizeble')
-    parser.add_argument('-nonimg', action='store_true', help="""don't move non images to "mv" folder""")
-    parser.add_argument('-kpng', action='store_true', help="Keep (Don't convet) png")
-    parser.add_argument('-bnwjpg', action='store_true', help="Don't convert Black&White jpg's to png")
-    parser.add_argument('-msize', dest='fsize_min', default="150K", help="Min filesize to process")
-    parser.add_argument('-c:q', dest='quality', type=int, default=int(90), help='Png convert quality \n (default: %(default)s)')
-    parser.add_argument('-resize', dest='size', type=int, default=int(3508), help='Resize to size. \n (default: %(default)s)')
-    parser.add_argument('-o', dest="out_dir", type=str, default=str('./test'), help="Output dir \n (default: %(default)s)")
+    parser.add_argument('-ask', action='store_true', help='ask resize for each resizeble')
+    parser.add_argument('-nonimg', action='store_true', help="""don't move non-images to "mv" folder""")
+    parser.add_argument('-kpng', action='store_true', help="keep (Don't convet) png")
+    parser.add_argument('-bnwjpg', action='store_true', help="don't convert Black&White jpg's to png")
+    parser.add_argument('-msize', dest='fsize_min', default="150K", help="min filesize to process. (B | K | M) (K=2^10)")
+    parser.add_argument('-c:f', dest='convert_format', type=str, help="set 'convert to' Format for all files")
+    parser.add_argument('-c:q', dest='convert_quality', type=int, default=int(90), help='non-jpg Convert Quality \n (default: %(default)s) (tip: A3&A4 paper 4961/3508/2480/1754/1240)')
+    parser.add_argument('-resize', dest='size', type=int, default=int(3508), help='resize to size. \n (default: %(default)s)')
+    parser.add_argument('-o', dest="out_dir", type=str, default=str('./test'), help="output dir \n (default: %(default)s)")
     args = parser.parse_args()
 
     if args.path:
@@ -51,6 +52,7 @@ def main():
 
     files_process(src_dir, filesindir, args)
 
+
 class Img:
     def __init__(self, f):
         self.name: str = f
@@ -58,6 +60,7 @@ class Img:
         self.size = self.img.size
         self.atime = os.path.getatime(f)
         self.mtime = os.path.getmtime(f)
+
 
 def files_process(src_dir: str, filesindir: List[str], args):
     out_dir = os.path.abspath(args.out_dir) + '/'
@@ -87,6 +90,11 @@ def files_process(src_dir: str, filesindir: List[str], args):
             shutil.copy2(f, args.out_dir)
             continue
 
+        quality = args.convert_quality
+        if args.convert_format:
+            img_save(img, out_dir, quality, args.convert_format)
+            continue
+
         size_target = args.size
         if size_target:
             if ((int(img.size[0]) > size_target) or
@@ -96,7 +104,6 @@ def files_process(src_dir: str, filesindir: List[str], args):
                     print(colored('making image smaller', 'yellow'))
                     img.img.thumbnail(size_target, Image.LANCZOS)
 
-        quality = args.quality
         if f.endswith('.png'):
             if args.kpng:
                 img_save(img, out_dir, quality, 'png')
@@ -104,18 +111,17 @@ def files_process(src_dir: str, filesindir: List[str], args):
                 img_save(img, out_dir, quality, 'webp')
             else:
                 img_save(img, out_dir, quality, 'jpg')
-
         elif f.endswith('.jpg'):
             if not args.bnwjpg and image_iscolorfull(img.img) in ('grayscale', 'blackandwhite'):
                 print('Black and white image, convert jpg to png')
                 img_save(img, out_dir, quality, 'png')
             else:
                 img_save(img, out_dir, quality, 'jpg')
-
         else:
             print(colored(str(img.img.format).lower(), 'blue'))
             print(colored("Copying to out dir", 'blue'))
             shutil.copy2(f, args.out_dir)
+
 
 def img_save(img: Img, out_dir, quality, ext: str):
     path_split = os.path.splitext(img.name)
@@ -152,11 +158,13 @@ def img_save(img: Img, out_dir, quality, ext: str):
 
     os.utime(out_path, (img.atime, img.mtime))
 
+   
 def file_move(srcdir: str, filename: str, dirname: str, msg: str = ''):
     print(msg)
     if not os.path.exists(srcdir + '/' + dirname):
         os.mkdir(srcdir + '/' + dirname)
     os.rename(srcdir + '/' + filename, srcdir + '/' + dirname + '/' + filename)
+
 
 def parse_size(size: str):
     units = {"B": 1, "K": 2**10, "M": 2**20}
@@ -195,10 +203,12 @@ def image_iscolorfull(image, thumb_size=40, MSE_cutoff=22, adjust_color_bias=Tru
         print("Don't know...", bands)
         return "unknown"
 
+
 def image_has_transparency(image: Image.Image):
     if len(image.getbands()) < 4: # if 'A' not in image.getbands()
         return False
     return True if image.getextrema()[3][0] != 255 else False
+
 
 if __name__ == '__main__':
     main()
