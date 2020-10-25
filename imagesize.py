@@ -22,12 +22,23 @@ from typing import List
 from PIL import Image, ImageStat
 from termcolor import colored
 
+ZOPFLI = False
+if shutil.which('zopflipng'):
+    from multiprocessing import cpu_count
+    from multiprocessing import Pool
+    ZOPFLI = True
+import subprocess
+def call_zopflipng(cmd):
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = p.communicate()
+    return (out, err)
+
 def main():
     parser = argparse.ArgumentParser(description='Reduce images size',
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('path', nargs='?', help="Dir with images")
     parser.add_argument('-ask', action='store_true', help='ask resize for each resizeble')
-    parser.add_argument('-nonimg', action='store_true', help="""don't move non-images to "mv" folder""")
+    parser.add_argument('-mv', action='store_true', help="""Move non-images to "mv" folder""")
     parser.add_argument('-kpng', action='store_true', help="keep (Don't convet) png")
     parser.add_argument('-bnwjpg', action='store_true', help="don't convert Black&White jpg's to png")
     parser.add_argument('-msize', dest='fsize_min', default="150K", help="min filesize to process. (B | K | M) (K=2^10)")
@@ -35,8 +46,15 @@ def main():
     parser.add_argument('-c:q', dest='convert_quality', type=int, default=int(90), help='non-jpg Convert Quality \n (default: %(default)s) (tip: A3&A4 paper 4961/3508/2480/1754/1240)')
     parser.add_argument('-resize', dest='size', type=int, default=int(3508), help='resize to size. \n (default: %(default)s)')
     parser.add_argument('-o', dest="out_dir", type=str, default=str('./test'), help="output dir \n (default: %(default)s)")
+    global ZOPFLI
+    if ZOPFLI:
+        parser.add_argument('-nozopfli', action='store_true', help="Don't use zopflipng")
+
     args = parser.parse_args()
 
+    if ZOPFLI:
+        ZOPFLI = not args.nozopfli
+        print(ZOPFLI)
     if args.path:
         print('by argument')
         src_dir = os.path.abspath(args.path)
@@ -63,6 +81,7 @@ class Img:
 
 
 def files_process(src_dir: str, filesindir: List[str], args):
+    resized = False
     out_dir = os.path.abspath(args.out_dir) + '/'
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
@@ -72,7 +91,7 @@ def files_process(src_dir: str, filesindir: List[str], args):
         try:
             img = Img(f)
         except Exception:
-            if not args.nonimg:
+            if args.mv:
                 print(colored("Moving to mv dir", 'red'))
                 file_move(src_dir, f, 'mv')
             continue
@@ -80,7 +99,7 @@ def files_process(src_dir: str, filesindir: List[str], args):
         print(f)
         print(img.size)
         if f.endswith('.png') and img.img.get_format_mimetype() == 'image/apng':
-            if not args.nonimg:
+            if args.mv:
                 file_move(src_dir, f, 'mv')
             continue
 
@@ -103,10 +122,15 @@ def files_process(src_dir: str, filesindir: List[str], args):
                     size_target = size_target, size_target
                     print(colored('making image smaller', 'yellow'))
                     img.img.thumbnail(size_target, Image.LANCZOS)
+                    resized = True
 
         if f.endswith('.png'):
             if args.kpng:
                 img_save(img, out_dir, quality, 'png')
+            elif not resized and ZOPFLI:
+                cmd = ['zopflipng', '-y', img.name, out_dir + img.name]
+                pool_results.append(pool.apply_async(call_zopflipng, (cmd,)))
+                print('To zopflipng queue')
             elif image_has_transparency(img.img):
                 img_save(img, out_dir, quality, 'webp')
             else:
@@ -121,6 +145,15 @@ def files_process(src_dir: str, filesindir: List[str], args):
             print(colored(str(img.img.format).lower(), 'blue'))
             print(colored("Copying to out dir", 'blue'))
             shutil.copy2(f, args.out_dir)
+
+    if ZOPFLI:
+        pool.close()
+        print('Waiting zopflipng to complete')
+        pool.join()
+        print('Done')
+        for result in pool_results:
+            out, _ = result.get()
+            print("out:\n" + out.decode())
 
 
 def img_save(img: Img, out_dir, quality, ext: str):
@@ -211,4 +244,7 @@ def image_has_transparency(image: Image.Image):
 
 
 if __name__ == '__main__':
+    if ZOPFLI:
+        pool = Pool(processes=cpu_count())
+        pool_results = []
     main()
