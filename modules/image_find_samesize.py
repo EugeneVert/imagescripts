@@ -7,11 +7,12 @@ import sys
 from PIL import Image
 from termcolor import colored
 
-def main():
-    print(sys.argv)
-    if len(sys.argv) >= 2:
+
+def main(argv):
+    print(argv)
+    if len(argv) >= 2:
         print('by argument')
-        dir_target = os.path.abspath(sys.argv[1])
+        dir_target = os.path.abspath(argv[1])
     else:
         print('by cwd')
         dir_target = os.getcwd()
@@ -24,13 +25,16 @@ def main():
     img_c_min = int(input('Min images count to mv '))
     input('Press any key')
 
+    os.chdir(dir_target)
     images_find_eq_res(files_in_dir, dir_target, img_c_min)
+
 
 def file_move(srcdir: str, filename: str, dirname: str, msg: str = ''):
     print(msg)
     if not os.path.exists(srcdir + '/' + dirname):
         os.mkdir(srcdir + '/' + dirname)
     os.rename(srcdir + '/' + filename, srcdir + '/' + dirname + '/' + filename)
+
 
 def images_find_eq_res(files_in_dir, dir_target, img_c_min):
     known_images_dict = dict()
@@ -60,6 +64,7 @@ def images_find_eq_res(files_in_dir, dir_target, img_c_min):
             for f in j:
                 file_move(dir_target, f, str(res[0])+' x'+str(res[1]), 'file ' + f + ' moved')
 
+
 def images_dict_flipsort(images_dict, dir_target):
     flipped = {}
     for key, value in images_dict.items():
@@ -71,5 +76,5 @@ def images_dict_flipsort(images_dict, dir_target):
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv)
     print('done')

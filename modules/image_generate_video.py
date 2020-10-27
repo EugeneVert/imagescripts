@@ -17,7 +17,8 @@ import ffmpeg
 # orig of resized images arhiving
 import zipfile
 
-def main():
+
+def main(*args):
     parser = argparse.ArgumentParser(description=\
 "Generate video from set of images based on maximum images sizes of that set.\n" +\
 "Then generates script for imagemagick for convert video back to images.",
@@ -28,7 +29,7 @@ def main():
     parser.add_argument('-b', '--background', default='Black', help='Specify video background')
     parser.add_argument('-crf', dest='crf', type=int, default=12, help='Specify video CRF')
     parser.add_argument('-r', '--fps', dest='fps', type=int, default=2, help='Specify video framerate') # NOTE fps default value check on gen_extract_file in image2video
-    args = parser.parse_args()
+    args = parser.parse_args(*args)
 
     # Parse paths
     files = set()
@@ -59,6 +60,7 @@ def main():
             image2video(_files, args.background, args.crf, args.fps, args.dimensions)
             os.chdir('..')
 
+
 def image2video(in_files, background, crf, fps, dimensions=None): # TODO Specify name of out.mp4
     print(in_files)
     img_dir = os.path.dirname(in_files[0])
@@ -80,6 +82,7 @@ def image2video(in_files, background, crf, fps, dimensions=None): # TODO Specify
     if fps == 2:
         gen_extract_file(WH, img_size_dict, name, fps)
 
+
 def images_size_targ(images):
     img_size_dict = {}
     for i in images:
@@ -91,6 +94,7 @@ def images_size_targ(images):
     wh_max = (w_max, h_max)
     return wh_max, img_size_dict
 
+
 def list_most_frequent(List):
     _max = 0
     _res = List[0]
@@ -100,6 +104,7 @@ def list_most_frequent(List):
             _max = freq
             _res = i
     return _res
+
 
 def gen_extract_file(WH, img_size_dict, out_dname, fps): # TODO Specify name of out.mp4 (image2video)
     img_list = [os.path.basename(i) for i in sorted(img_size_dict.keys())]
@@ -139,13 +144,15 @@ done
         f.write('cd .. ; ')
         f.write('fi')
         f.close()
-  
+
+
 def list_to_str(list:list):
     s = str()
     for i in list:
         formated = '"'+ str(i) +'" '
         s += formated
     return s
+
 
 def gen_resize_dict(WH: tuple, img_size_dict: dict, img_list: list, out_dname='_d'):
     resize_dict = {}
@@ -171,6 +178,7 @@ def gen_resize_dict(WH: tuple, img_size_dict: dict, img_list: list, out_dname='_
     after_gen(path, out_dname)
     return resize_dict
 
+
 def after_gen(path, out_dname):
     path_d = path + '/' + out_dname
     files = glob.glob(out_dname + '/*.webp')
@@ -182,10 +190,12 @@ def after_gen(path, out_dname):
         print('done for image', f)
     make_archive(path, out_dname)
 
+
 def make_archive(path, path_d):
     if os.listdir(path_d):
         shutil.make_archive(path_d, 'zip', path, os.path.basename(path_d) + '/')
     shutil.rmtree(path_d)
+
 
 if __name__ == '__main__':
     main()

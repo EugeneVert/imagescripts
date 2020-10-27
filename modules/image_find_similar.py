@@ -10,17 +10,19 @@ import imagehash
 from PIL import Image
 from termcolor import colored
 
-def main():
-    print(sys.argv)
-    if len(sys.argv) >= 2:
+
+def main(argv):
+    print(argv)
+    if len(argv) >= 2:
         print('by argument')
-        src_dir = os.path.abspath(sys.argv[1])
+        src_dir = os.path.abspath(argv[1])
     else:
         print('by cwd')
         src_dir = os.getcwd()
     min_images_in_folder = int(input('Min images in folder: '))
     files_in_dir = [f.name for f in os.scandir(src_dir) if f.is_file()]
     img_hash_dict = {}
+    os.chdir(src_dir)
     for f in files_in_dir:
         try:
             filepath = src_dir + '/' + f
@@ -40,6 +42,7 @@ def main():
     _img_hash_dict_2, counter = images_process(src_dir, img_hash_dict, min_images_in_folder)
     print('________\n\n\n\n\n IMG PROCESS OTHER')
     images_process(src_dir, _img_hash_dict_2, min_images_in_folder, counter)
+
 
 def images_process(src_dir, img_hash_dict, min_images_in_folder, counter_for_folders=0):
     imgs_hash_to_process = img_hash_dict
@@ -73,6 +76,7 @@ def images_process(src_dir, img_hash_dict, min_images_in_folder, counter_for_fol
         #     dir_target = src_dir + '/' + str(counter_for_folders)
         #     images_sort_by_hash(simillars, dir_target)
     return _img_hash_dict_2, counter_for_folders
+
 
 def image_find_simillar(orig, img_hash_dict, _img_hash_dict_2={}, mode=0):
     print('find similar for: ', orig[0])
@@ -136,6 +140,7 @@ def image_find_simillar(orig, img_hash_dict, _img_hash_dict_2={}, mode=0):
             # hash_diff_list.append(hash_diff)
     return img_simillar #, hash_diff_list
 
+
 def images_sort_by_hash(simillars, src_dir):
     files_sorted = sorted(simillars.items(), key= lambda i: str(i[1]))
     if not os.path.exists(src_dir + '/out'):
@@ -158,5 +163,6 @@ def file_move(srcdir: str, filename: str, dirname: str, msg: str = ''):
 
 
 if __name__ == '__main__':
-    main()
+    argv = sys.argv
+    main(argv)
     print('done')

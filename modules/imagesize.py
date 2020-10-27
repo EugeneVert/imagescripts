@@ -33,7 +33,7 @@ def call_zopflipng(cmd):
     out, err = p.communicate()
     return (out, err)
 
-def main():
+def main(*args):
     parser = argparse.ArgumentParser(description='Reduce images size',
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('path', nargs='?', help="Dir with images")
@@ -50,7 +50,7 @@ def main():
     if ZOPFLI:
         parser.add_argument('-nozopfli', action='store_true', help="Don't use zopflipng")
 
-    args = parser.parse_args()
+    args = parser.parse_args(*args)
 
     if ZOPFLI:
         ZOPFLI = not args.nozopfli
@@ -191,7 +191,7 @@ def img_save(img: Img, out_dir, quality, ext: str):
 
     os.utime(out_path, (img.atime, img.mtime))
 
-   
+
 def file_move(srcdir: str, filename: str, dirname: str, msg: str = ''):
     print(msg)
     if not os.path.exists(srcdir + '/' + dirname):

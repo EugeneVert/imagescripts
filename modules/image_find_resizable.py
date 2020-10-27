@@ -6,7 +6,8 @@ import os
 import sys
 from PIL import Image
 from termcolor import colored
-from modules.cursesmultisel import DisplayMenu
+from ncurses.cursesmultisel import DisplayMenu
+
 
 OPTIONS = [
     ['sort png', 'sw'],
@@ -23,11 +24,13 @@ def confirmprompt(promptin):
         answer = input(promptin +" [Y/N]? ").lower()
     return answer == "y"
 
+
 def file_move(srcdir: str, filename: str, dirname: str, msg: str = ''):
     print(msg)
     if not os.path.exists(srcdir + '/' + dirname):
         os.mkdir(srcdir + '/' + dirname)
     os.rename(srcdir + '/' + filename, srcdir + '/' + dirname + '/' + filename)
+
 
 def process_files(filesindir, targetdir, sizetarg, png_sort,
                   png_sizetarg_MiB, png_sizetarg_px, nonimagetomv):
@@ -109,16 +112,12 @@ def process_files(filesindir, targetdir, sizetarg, png_sort,
                           'To Resizeble_.../')
 
 
-
-
-
-
-def main(options):
+def main(options, argv):
     activeopt = list()
-    print(sys.argv)
-    if len(sys.argv) >= 2:
+    print(argv)
+    if len(argv) >= 2:
         print('by argument')
-        targetdir = os.path.abspath(sys.argv[1])
+        targetdir = os.path.abspath(argv[1])
     else:
         print('by cwd')
         targetdir = os.getcwd()
@@ -172,7 +171,7 @@ def main(options):
         png_sort = 1
     if 'move non-images to ./mv' in activeopt:
         nonimagetomv = 1
-
+    os.chdir(targetdir)
     process_files(filesindir,
                   targetdir,
                   sizetarg,
@@ -182,6 +181,8 @@ def main(options):
                   png_sizetarg_px,
                   nonimagetomv)
 
+
 if __name__ == "__main__":
-    main(OPTIONS)
+    args = sys.argv
+    main(OPTIONS, args)
     print('done')
