@@ -1,0 +1,20 @@
+#+TITLE: ImageScripts
+
+ImageScripts - scripts and wrapper for sorting and manipulating images & videos for python.
+
+** Features
+
+- Size reduction (imagesize module)
+- Gallery organisation (find module)
+
+  | Function                                  | Submodule             |
+  |-------------------------------------------+-----------------------|
+  | Find Resizable images with png separation | find\under{}resizable |
+  | Find Images with same dimensions          | find\under{}samesize  |
+  | Find Simmilar(by average hash)            | find\under{}simmilar  |
+- Image to video converters (generate module)
+
+  | Function                                       | Submodule                         |
+  |------------------------------------------------+-----------------------------------|
+  | Generate video from images in folder(s)        | generate\under{}video             |
+  | Generate video from json(s) and zip archive(s) | json\under{}generate\under{}video |
