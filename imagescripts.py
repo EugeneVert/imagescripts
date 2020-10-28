@@ -30,10 +30,10 @@ elif task == 'generate':
     subtask = args.subtask
     if subtask == 'video':
         import modules.image_generate_video as img2video
-        img2video.main(sys.argv[2:])
+        img2video.main(sys.argv[3:])
     if subtask == 'fromjson':
         import modules.image_json_generate_video as json2video
-        json2video.main(sys.argv[2:])
+        json2video.main(sys.argv[3:])
 elif task == 'find':
     subtask = args.subtask
     if subtask == 'resizable':

@@ -54,7 +54,6 @@ def main(*args):
     else:
         for dir in files:
             _files = glob.glob(dir + '*' + args.extension)
-            print(_files)
             _files = [os.path.join(os.getcwd(), path) for path in _files]
             os.chdir(dir)
             image2video(_files, args.background, args.crf, args.fps, args.dimensions)
@@ -62,7 +61,6 @@ def main(*args):
 
 
 def image2video(in_files, background, crf, fps, dimensions=None): # TODO Specify name of out.mp4
-    print(in_files)
     img_dir = os.path.dirname(in_files[0])
     fullname = os.path.basename(sorted(in_files)[0])
     name, img_ext = os.path.splitext(fullname)
@@ -199,4 +197,3 @@ def make_archive(path, path_d):
 
 if __name__ == '__main__':
     main()
-    print('done')
