@@ -19,7 +19,7 @@ parser_find = subparser.add_parser('find', help='sort files', add_help=False)
 parser_find.add_argument('subtask', choices=['resizable', 'samesize', 'simmilar'])
 parser_find.set_defaults(task='find')
 args, _ = parser.parse_known_args()
-sys.path.append('./modules/')
+sys.path.append(sys.path[0] + '/modules/')
 task = args.task
 print("TASK: " + task)
 
