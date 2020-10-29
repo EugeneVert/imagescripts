@@ -19,6 +19,7 @@ import argparse
 import shutil
 import re
 import subprocess
+from io import BytesIO
 from PIL import Image, ImageStat
 from termcolor import colored
 
@@ -66,6 +67,7 @@ def main(*args):
     if ZOPFLI:
         ZOPFLI = not args.nozopfli
         pool = Pool(processes=cpu_count()) if ZOPFLI else 0
+        pool_filenames = []
         pool_results = []
     if args.path:
         print('by argument')
@@ -86,11 +88,15 @@ def main(*args):
         print(colored('Creating dir ' + args.out_dir, 'green'))
     if ZOPFLI:
         for f in filesindir:
-            res = files_process(f, src_dir, out_dir, args, pool)
-            if res:
-                pool_results.extend(res)
+            p_names, p_res = files_process(f, src_dir, out_dir, args, pool)
+            if p_res:
+                pool_filenames.extend(p_names)
+                pool_results.extend(p_res)
         pool.close()
-        print('Waiting zopflipng to complete')
+        if pool_results:
+            print('Waiting zopflipng to complete:')
+            print(*sorted(pool_filenames), sep='\n')
+            print('Waiting:')
         pool.join()
         print('Done')
         for result in pool_results:
@@ -110,7 +116,8 @@ class Img:
         self.mtime = os.path.getmtime(f)
 
 
-def files_process(f, src_dir: str, out_dir: str, args, pool = ''):
+def files_process(f, src_dir: str, out_dir: str, args, pool=''):
+    pool_filenames = []
     pool_results = []
     resized = False
     try:
@@ -133,11 +140,14 @@ def files_process(f, src_dir: str, out_dir: str, args, pool = ''):
         print(colored("Size too low\nCopying to out dir", 'blue'))
         shutil.copy2(f, args.out_dir)
         return
-
     quality = args.convert_quality
+
     if args.convert_format:
-        img_save(img, out_dir, quality, args.convert_format)
-        return
+        if ZOPFLI and args.convert_format.lower() == 'png':
+            args.kpng = True
+        else:
+            img_save(img, out_dir, quality, args.convert_format, compare=False)
+            return
 
     size_target = args.size
     if size_target:
@@ -150,18 +160,20 @@ def files_process(f, src_dir: str, out_dir: str, args, pool = ''):
                 resized = True
 
     if f.endswith('.png'):
-        if args.kpng:
-            img_save(img, out_dir, quality, 'png')
-        elif not resized and ZOPFLI:
+        if args.kpng and not resized and ZOPFLI:
             cmd = ['zopflipng', '-y', img.name, out_dir + img.name]
+            pool_filenames.append(img.name)
             pool_results.append(pool.apply_async(call_zopflipng, (cmd,)))
             print('To zopflipng queue')
+        elif args.kpng:
+            img_save(img, out_dir, quality, 'png')
         elif image_has_transparency(img.img):
             img_save(img, out_dir, quality, 'webp')
         else:
             img_save(img, out_dir, quality, 'jpg')
     elif f.endswith('.jpg'):
-        if not args.bnwjpg and image_iscolorfull(img.img) in ('grayscale', 'blackandwhite'):
+        if not args.bnwjpg \
+           and image_iscolorfull(img.img) in ('grayscale', 'blackandwhite'):
             print('Black and white image, convert jpg to png')
             img_save(img, out_dir, quality, 'png')
         else:
@@ -171,44 +183,59 @@ def files_process(f, src_dir: str, out_dir: str, args, pool = ''):
         print(colored("Copying to out dir", 'blue'))
         shutil.copy2(f, args.out_dir)
     if ZOPFLI:
-        return pool_results
+        return pool_filenames, pool_results
 
 
-def img_save(img: Img, out_dir, quality, ext: str):
+def img_save(img: Img, out_dir, quality, ext: str, *, compare=True):
     path_split = os.path.splitext(img.name)
     out_path = out_dir + path_split[0] + '.' + ext
+    out_file = BytesIO()
     i_ext = path_split[1][1:]
     # png  -> png, jpg, webp
     # jpg  -> png, jpg, webp
     # webp -> jpg, webp
-
+    if ext == 'jpg':
+        ext = 'jpeg'
     # JPEG
     if i_ext == 'jpg':
-        if ext == 'jpg':
-            img.img.save(out_path, quality=90, subsampling='keep', optimize=True)
+        if ext == 'jpeg':
+            img.img.save(out_file, ext, quality=90, subsampling='keep', optimize=True)
         elif ext == 'png':
             img.img = img.img.convert(mode='P', palette=Image.ADAPTIVE)
-            img.img.save(out_path, optimize=True)
+            img.img.save(out_file, ext, optimize=True)
         elif ext == 'webp':
-            img.img.save(out_path, quality=quality + 2, method=6)
+            img.img.save(out_file, ext, quality=quality + 2, method=6)
     # PNG
     elif i_ext == 'png':
         if ext == 'png':
-            img.img.save(out_path, optimize=True)
-        elif ext == 'jpg':
+            img.img.save(out_file, ext, optimize=True)
+        elif ext == 'jpeg':
             img.img = img.img.convert('RGB')
-            img.img.save(out_path, quality=quality, subsampling=1, optimize=True)
+            img.img.save(out_file, ext, quality=quality, subsampling=1, optimize=True)
         elif ext == 'webp':
-            img.img.save(out_path, quality=quality + 2, method=6)
+            img.img.save(out_file, ext, quality=quality + 2, method=6)
     # WEBP
     elif i_ext == 'webp':
         if ext == 'webp':
-            img.img.save(out_path, quality=quality + 2, method=6)
-        elif ext == 'jpg':
-            img.img.save(out_path, quality=quality, subsampling=0, optimize=True)
+            img.img.save(out_file, ext, quality=quality + 2, method=6)
+        elif ext == 'jpeg':
+            img.img.save(out_file, ext, quality=quality, subsampling=0, optimize=True)
 
-    os.utime(out_path, (img.atime, img.mtime))
-
+    out_file_size = out_file.tell()
+    orig_file_size = os.path.getsize(img.name)
+    print(f"Input size: {orig_file_size}")
+    print(f"Result size: {out_file_size}. " +
+          "Percentage of original:" +
+          "{:.2f}".format(100 * out_file_size / orig_file_size) + "%")
+    if compare and out_file_size < orig_file_size\
+       or not compare:
+        with open(out_path, 'wb') as opened_file:
+            print("Result size is smaller. Saving")
+            opened_file.write(out_file.getbuffer())
+            os.utime(out_path, (img.atime, img.mtime))
+    else:
+        print("Out size is bigger. Copying original")
+        shutil.copy2(img.name, out_dir)
 
 def file_move(srcdir: str, filename: str, dirname: str, msg: str = ''):
     print(msg)
