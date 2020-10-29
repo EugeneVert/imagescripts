@@ -109,11 +109,13 @@ def gen_extract_file(WH, img_size_dict, out_dname, fps): # TODO Specify name of 
     fullname = img_list[0]
     name, ext = os.path.splitext(fullname)
 
-    f = open('frames.sh', 'w')
+    f = open('_frames.sh', 'w')
     f.write('#!/usr/bin/env bash\n')
     f.write("""
 for i in *.mp4
 do
+    if [ -L "$i" ]
+    then continue; fi
     dirname="${{i%.*}}"
     mkdir "$dirname"
     ffmpeg -i "$i" -r {0} -c:v libwebp -qscale 95 -qmin 1 -qmax 1 ./"$dirname"/img%03d.webp
