@@ -45,6 +45,8 @@ def main(*args):
                         help="""Move non-images to "mv" folder""")
     parser.add_argument('-kpng', action='store_true',
                         help="keep (Don't convet) png")
+    parser.add_argument('-orignocopy', action='store_true',
+                        help="Don't copy original images after size compare")
     parser.add_argument('-bnwjpg', action='store_true',
                         help="don't convert Black&White jpg's to png")
     parser.add_argument('-msize', dest='fsize_min', default="150K",
@@ -88,10 +90,10 @@ def main(*args):
         print(colored('Creating dir ' + args.out_dir, 'green'))
     if ZOPFLI:
         for f in filesindir:
-            p_names, p_res = files_process(f, src_dir, out_dir, args, pool)
-            if p_res:
-                pool_filenames.extend(p_names)
-                pool_results.extend(p_res)
+            res = files_process(f, src_dir, out_dir, args, pool)
+            if res:
+                pool_filenames.extend(res[0])
+                pool_results.extend(res[1])
         pool.close()
         if pool_results:
             print('Waiting zopflipng to complete:')
@@ -137,16 +139,18 @@ def files_process(f, src_dir: str, out_dir: str, args, pool=''):
 
     filesize_min_to_process = parse_size(args.fsize_min)
     if os.path.getsize(f) < filesize_min_to_process and not f.endswith('png'):
+        if args.orignocopy:
+            return
         print(colored("Size too low\nCopying to out dir", 'blue'))
         shutil.copy2(f, args.out_dir)
         return
     quality = args.convert_quality
 
     if args.convert_format:
-        if ZOPFLI and args.convert_format.lower() == 'png':
+        if ZOPFLI and args.convert_format.lower() == 'png' and f.endswith('.png'):
             args.kpng = True
         else:
-            img_save(img, out_dir, quality, args.convert_format, compare=False)
+            img_save(img, {'out_dir': out_dir, 'quality': quality}, args.convert_format, compare=False)
             return
 
     size_target = args.size
@@ -159,6 +163,7 @@ def files_process(f, src_dir: str, out_dir: str, args, pool=''):
                 img.img.thumbnail(size_target, Image.LANCZOS)
                 resized = True
 
+    img_save_args = {'out_dir': out_dir, 'quality': quality, 'origcopy': not args.orignocopy}
     if f.endswith('.png'):
         if args.kpng and not resized and ZOPFLI:
             cmd = ['zopflipng', '-y', img.name, out_dir + img.name]
@@ -166,18 +171,19 @@ def files_process(f, src_dir: str, out_dir: str, args, pool=''):
             pool_results.append(pool.apply_async(call_zopflipng, (cmd,)))
             print('To zopflipng queue')
         elif args.kpng:
-            img_save(img, out_dir, quality, 'png')
+            img_save(img, img_save_args, 'png')
         elif image_has_transparency(img.img):
-            img_save(img, out_dir, quality, 'webp')
+            print(colored('Image has transparency', 'yellow'))
+            img_save(img, img_save_args, 'webp')
         else:
-            img_save(img, out_dir, quality, 'jpg')
+            img_save(img, img_save_args, 'jpg')
     elif f.endswith('.jpg'):
         if not args.bnwjpg \
            and image_iscolorfull(img.img) in ('grayscale', 'blackandwhite'):
             print('Black and white image, convert jpg to png')
-            img_save(img, out_dir, quality, 'png')
+            img_save(img, img_save_args, 'png')
         else:
-            img_save(img, out_dir, quality, 'jpg')
+            img_save(img, img_save_args, 'jpg')
     else:
         print(colored(str(img.img.format).lower(), 'blue'))
         print(colored("Copying to out dir", 'blue'))
@@ -186,9 +192,10 @@ def files_process(f, src_dir: str, out_dir: str, args, pool=''):
         return pool_filenames, pool_results
 
 
-def img_save(img: Img, out_dir, quality, ext: str, *, compare=True):
+def img_save(img: Img, args, ext: str, *, compare=True):
     path_split = os.path.splitext(img.name)
-    out_path = out_dir + path_split[0] + '.' + ext
+    quality = args['quality']
+    out_path = args['out_dir'] + path_split[0] + '.' + ext
     out_file = BytesIO()
     i_ext = path_split[1][1:]
     # png  -> png, jpg, webp
@@ -199,9 +206,9 @@ def img_save(img: Img, out_dir, quality, ext: str, *, compare=True):
     # JPEG
     if i_ext == 'jpg':
         if ext == 'jpeg':
-            img.img.save(out_file, ext, quality=90, subsampling='keep', optimize=True)
+            img.img.save(out_file, ext, quality=92, subsampling='keep', optimize=True)
         elif ext == 'png':
-            img.img = img.img.convert(mode='P', palette=Image.ADAPTIVE)
+            # img.img = img.img.convert(mode='P', palette=Image.ADAPTIVE)
             img.img.save(out_file, ext, optimize=True)
         elif ext == 'webp':
             img.img.save(out_file, ext, quality=quality + 2, method=6)
@@ -227,15 +234,15 @@ def img_save(img: Img, out_dir, quality, ext: str, *, compare=True):
     print(f"Result size: {out_file_size}. " +
           "Percentage of original:" +
           "{:.2f}".format(100 * out_file_size / orig_file_size) + "%")
-    if compare and out_file_size < orig_file_size\
+    if compare and (out_file_size < orig_file_size - 1024)\
        or not compare:
         with open(out_path, 'wb') as opened_file:
-            print("Result size is smaller. Saving")
+            print("Saving result")
             opened_file.write(out_file.getbuffer())
             os.utime(out_path, (img.atime, img.mtime))
-    else:
+    elif args['origcopy'] :
         print("Out size is bigger. Copying original")
-        shutil.copy2(img.name, out_dir)
+        shutil.copy2(img.name, args['out_dir'])
 
 def file_move(srcdir: str, filename: str, dirname: str, msg: str = ''):
     print(msg)
@@ -271,7 +278,6 @@ def image_iscolorfull(image, thumb_size=40, MSE_cutoff=22, adjust_color_bias=Tru
             print("Grayscale")
             return "grayscale"
         else:
-            print("Color")
             return "color"
         print("( MSE=", MSE, ")")
     elif len(bands) == 1:
