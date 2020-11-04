@@ -1,40 +1,30 @@
 #!/usr/bin/env python3
-#    _                                       _
-#   (_)_ __ ___   __ _  __ _  ___  ___   ___(_)_______
-#   | | '_ ` _ \ / _` |/ _` |/ _ \/ __| / __| |_  / _ \
-#   | | | | | | | (_| | (_| |  __/\__ \ \__ \ |/ /  __/
-#   |_|_| |_| |_|\__,_|\__, |\___||___/ |___/_/___\___|
-#                      |___/
-#                 _
-#    _ __ ___  __| |_   _  ___ ___ _ __
-#   | '__/ _ \/ _` | | | |/ __/ _ \ '__|
-#   | | |  __/ (_| | |_| | (_|  __/ |
-#   |_|  \___|\__,_|\__,_|\___\___|_|
-#
+
 # 2020 Eugene Vert; eugene.a.vert@gmail.com
 
-import os
-import sys
-import argparse
-import shutil
-import re
-import subprocess
+import os, argparse, shutil, re, subprocess
+from pathlib import Path
 from io import BytesIO
 from PIL import Image, ImageStat
 from termcolor import colored
 
 
-ZOPFLI = False
+NONIMAGES_DIR = Path('./mv')
+
 if shutil.which('zopflipng'):
     from multiprocessing import cpu_count
     from multiprocessing import Pool
+    pool_dict = {}
     ZOPFLI = True
+else:
+    ZOPFLI = False
 def call_zopflipng(cmd):
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = p.communicate()
     return (out, err)
 
-def main(*args):
+
+def argument_parser(*args):
     parser = argparse.ArgumentParser(description='Reduce images size',
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('path', nargs='?',
@@ -53,9 +43,11 @@ def main(*args):
                         help="min filesize to process. (B | K | M) (K=2^10)")
     parser.add_argument('-c:f', dest='convert_format', type=str,
                         help="set 'convert to' Format for all files")
-    parser.add_argument('-c:q', dest='convert_quality', type=int, default=int(90),
+    parser.add_argument('-c:q', dest='convert_quality', type=int, default=int(92),
                         help='non-jpg Convert Quality \n (default: %(default)s)' +
                         '(tip: A3&A4 paper 4961/3508/2480/1754/1240)')
+    parser.add_argument('-lossless', action='store_true',
+                        help="Lossless webp")
     parser.add_argument('-resize', dest='size', type=int, default=int(3508),
                         help='resize to size. \n (default: %(default)s)')
     parser.add_argument('-o', dest="out_dir", type=str, default=str('./test'),
@@ -63,96 +55,128 @@ def main(*args):
     global ZOPFLI
     if ZOPFLI:
         parser.add_argument('-nozopfli', action='store_true', help="Don't use zopflipng")
-
     args = parser.parse_args(*args)
 
     if ZOPFLI:
         ZOPFLI = not args.nozopfli
-        pool = Pool(processes=cpu_count()) if ZOPFLI else 0
-        pool_filenames = []
-        pool_results = []
+        pool = Pool(processes=cpu_count()) if ZOPFLI else None
+    else:
+        pool = None
+
+    return args, pool
+
+
+def main(*args):
+    args, pool = argument_parser(*args)
+
     if args.path:
         print('by argument')
-        src_dir = os.path.abspath(args.path)
+        input_dir = Path(args.path)
     else:
         print('by cwd')
-        src_dir = os.getcwd()
+        input_dir = Path.cwd()
+    print(colored('Path: ' + input_dir.as_posix(), 'yellow'))
 
-    filesindir = [f.name for f in os.scandir(src_dir) if f.is_file()]
-    print(colored('Path: ' + src_dir, 'yellow'))
-    if(not [f for f in filesindir if f.endswith(('.png', '.jpg'))]):
-        print('\033[4m' + colored('No images', 'red') + '\033[0m')
-        sys.exit('')
+    input_dir_files = \
+        [f for f in input_dir.iterdir() if f.is_file()]
+    input_dir_images = \
+        [f for f in input_dir_files if f.name.endswith(('.png', '.jpg', '.webp'))]
+    input_dir_nonimages = list(set(input_dir_files) - set(input_dir_images))
 
-    out_dir = os.path.abspath(args.out_dir) + '/'
-    if not os.path.exists(out_dir):
-        os.mkdir(out_dir)
-        print(colored('Creating dir ' + args.out_dir, 'green'))
-    if ZOPFLI:
-        for f in filesindir:
-            res = files_process(f, src_dir, out_dir, args, pool)
-            if res:
-                pool_filenames.extend(res[0])
-                pool_results.extend(res[1])
-        pool.close()
-        if pool_results:
-            print('Waiting zopflipng to complete:')
-            print(*sorted(pool_filenames), sep='\n')
-            print('Waiting:')
-        pool.join()
-        print('Done')
-        for result in pool_results:
-            out, _ = result.get()
-            print("out:\n" + out.decode())
-    else:
-        for f in filesindir:
-            files_process(f, src_dir, out_dir, args)
+    if not input_dir_images:
+        print(colored('No images', 'red'))
+        return
+
+    Path.mkdir(input_dir / NONIMAGES_DIR, exist_ok=True)
+    if args.mv:
+        nonimages_mv(input_dir_nonimages, input_dir / NONIMAGES_DIR)
+
+    images_process(input_dir_images, input_dir, args, pool)
+
+    if not os.listdir(input_dir / NONIMAGES_DIR):
+        Path.rmdir(input_dir / NONIMAGES_DIR)
 
 
 class Img:
     def __init__(self, f):
-        self.name: str = f
+        self.name = f
         self.img: Image.Image = Image.open(f)
         self.size = self.img.size
         self.atime = os.path.getatime(f)
         self.mtime = os.path.getmtime(f)
 
 
-def files_process(f, src_dir: str, out_dir: str, args, pool=''):
-    pool_filenames = []
-    pool_results = []
+def images_process(input_images, input_dir, args, pool):
+    output_dir = input_dir / Path(args.out_dir)
+    Path.mkdir(output_dir, exist_ok=True)
+
+    if ZOPFLI:
+        global pool_dict
+        for f in input_images:
+            # process image and get info about file in zopfli pool
+            res = image_process(f, input_dir, output_dir, args, pool=pool)
+            print()
+            if res:
+                pool_dict.update(res)
+        pool.close()
+        if pool_dict:  # if any files in zopfli pool
+            print('Waiting zopflipng to complete:')
+            print(*sorted(pool_dict.keys()), sep='\n')
+            print('Waiting:')
+        pool.join()
+        print('Done')
+        for item in pool_dict.values():
+            out, _ = item.get()
+            print("out:\n" + out.decode())  # get zopfli output
+
+    else:
+        for f in input_images:
+            image_process(f, input_dir, output_dir, args)
+            print()
+
+
+def image_process(f, input_dir, output_dir, args, *, pool=None):
     resized = False
     try:
         img = Img(f)
-    except Exception:
+    except IOError:
+        print(colored("IOError;", 'red'))
         if args.mv:
-            print(colored("Moving to mv dir", 'red'))
-            file_move(src_dir, f, 'mv')
+            print("Moving to mv dir")
+            nonimages_mv(f, input_dir / NONIMAGES_DIR)
         return
 
-    print(f)
+    print(f.name)
     print(img.size)
-    if f.endswith('.png') and img.img.get_format_mimetype() == 'image/apng':
+
+    # What if png file actually an apng?
+    if f.name.endswith('.png') and img.img.get_format_mimetype() == 'image/apng':
+        print(colored('APNG;', 'red'))
         if args.mv:
-            file_move(src_dir, f, 'mv')
+            print("Moving to mv dir")
+            nonimages_mv(f, NONIMAGES_DIR)
         return
 
-    filesize_min_to_process = parse_size(args.fsize_min)
-    if os.path.getsize(f) < filesize_min_to_process and not f.endswith('png'):
+    # copy non-png files to output dir if they have small filesize
+    filesize_min_to_process = size2bytes(args.fsize_min)
+    if os.path.getsize(f) < filesize_min_to_process and not f.name.endswith('png'):
         if args.orignocopy:
             return
         print(colored("Size too low\nCopying to out dir", 'blue'))
-        shutil.copy2(f, args.out_dir)
+        shutil.copy2(f, output_dir)
         return
-    quality = args.convert_quality
 
     if args.convert_format:
-        if ZOPFLI and args.convert_format.lower() == 'png' and f.endswith('.png'):
+        if ZOPFLI and args.convert_format.lower() == 'png' and f.name.endswith('.png'):
             args.kpng = True
         else:
-            img_save(img, {'out_dir': out_dir, 'quality': quality}, args.convert_format, compare=False)
+            img_save(img, output_dir, args.convert_format,
+                     quality=args.convert_quality,
+                     lossless=args.lossless,
+                     compare=False)
             return
 
+    # resize images (ask for each or every image) if they are smaller than size_target
     size_target = args.size
     if size_target:
         if ((int(img.size[0]) > size_target) or
@@ -160,73 +184,124 @@ def files_process(f, src_dir: str, out_dir: str, args, pool=''):
             if (not args.ask) or input(colored('resize? y/n ', 'yellow')).lower() == 'y':
                 size_target = size_target, size_target
                 print(colored('making image smaller', 'yellow'))
+                # Lanczos filter is slow, but keeps details and edges. BICUBIC as alternative?
                 img.img.thumbnail(size_target, Image.LANCZOS)
                 resized = True
 
-    img_save_args = {'out_dir': out_dir, 'quality': quality, 'origcopy': not args.orignocopy}
-    if f.endswith('.png'):
+    if f.name.endswith('.png'):
         if args.kpng and not resized and ZOPFLI:
-            cmd = ['zopflipng', '-y', img.name, out_dir + img.name]
-            pool_filenames.append(img.name)
-            pool_results.append(pool.apply_async(call_zopflipng, (cmd,)))
+            cmd = ['zopflipng', '-y', f.resolve(), output_dir / f.name]
+            pool_dict[f.name] = pool.apply_async(call_zopflipng, (cmd,))
             print('To zopflipng queue')
         elif args.kpng:
-            img_save(img, img_save_args, 'png')
+            img_save(img, output_dir, 'png',
+                     quality=args.convert_quality,
+                     origcopy=not args.orignocopy)
         elif image_has_transparency(img.img):
             print(colored('Image has transparency', 'yellow'))
-            img_save(img, img_save_args, 'webp')
+            img_save(img, output_dir, 'webp',
+                     lossless=args.lossless,
+                     quality=args.convert_quality,
+                     origcopy=not args.orignocopy)
         else:
-            img_save(img, img_save_args, 'jpg')
-    elif f.endswith('.jpg'):
+            img_save(img, output_dir, 'jpg',
+                     quality=args.convert_quality,
+                     origcopy=not args.orignocopy)
+
+    elif f.name.endswith('.jpg'):
         if not args.bnwjpg \
            and image_iscolorfull(img.img) in ('grayscale', 'blackandwhite'):
             print('Black and white image, convert jpg to png')
-            img_save(img, img_save_args, 'png')
+            img_save(img, output_dir, 'png',
+                     quality=args.convert_quality,
+                     origcopy=not args.orignocopy)
         else:
-            img_save(img, img_save_args, 'jpg')
+            img_save(img, output_dir, 'jpg',
+                     quality=args.convert_quality,
+                     origcopy=not args.orignocopy)
+
     else:
         print(colored(str(img.img.format).lower(), 'blue'))
         print(colored("Copying to out dir", 'blue'))
-        shutil.copy2(f, args.out_dir)
+        shutil.copy2(f, output_dir)
     if ZOPFLI:
-        return pool_filenames, pool_results
+        return pool_dict
 
 
-def img_save(img: Img, args, ext: str, *, compare=True):
-    path_split = os.path.splitext(img.name)
-    quality = args['quality']
-    out_path = args['out_dir'] + path_split[0] + '.' + ext
+def img_save(
+        img: Img, output_path, ext: str, *,
+        quality=90, lossless=False, compare=True, origcopy=True
+):
+    out_file_path = output_path / (img.name.stem + '.' + ext)
     out_file = BytesIO()
-    i_ext = path_split[1][1:]
+    i_ext = img.name.suffix[1:]
     # png  -> png, jpg, webp
     # jpg  -> png, jpg, webp
     # webp -> jpg, webp
     if ext == 'jpg':
         ext = 'jpeg'
+
     # JPEG
     if i_ext == 'jpg':
         if ext == 'jpeg':
-            img.img.save(out_file, ext, quality=92, subsampling='keep', optimize=True)
+            img.img.save(out_file, ext,
+                         quality=quality,
+                         subsampling='keep',
+                         optimize=True)
         elif ext == 'png':
             # img.img = img.img.convert(mode='P', palette=Image.ADAPTIVE)
-            img.img.save(out_file, ext, optimize=True)
+            img.img.save(out_file, ext,
+                         optimize=True)
         elif ext == 'webp':
-            img.img.save(out_file, ext, quality=quality + 2, method=6)
+            if lossless:
+                img.img.save(out_file, ext,
+                             quality=100,
+                             lossless=True,
+                             method=6)
+            else:
+                img.img.save(out_file, ext,
+                             quality=quality,
+                             method=6)
+
     # PNG
     elif i_ext == 'png':
         if ext == 'png':
-            img.img.save(out_file, ext, optimize=True)
+            img.img.save(out_file, ext,
+                         optimize=True)
         elif ext == 'jpeg':
             img.img = img.img.convert('RGB')
-            img.img.save(out_file, ext, quality=quality, subsampling=1, optimize=True)
+            img.img.save(out_file, ext,
+                         quality=quality,
+                         subsampling=1,
+                         optimize=True)
         elif ext == 'webp':
-            img.img.save(out_file, ext, quality=quality + 2, method=6)
+            if lossless:
+                img.img.save(out_file, ext,
+                             quality=100,
+                             lossless=True,
+                             method=6)
+            else:
+                img.img.save(out_file, ext,
+                             quality=quality,
+                             method=6)
+
     # WEBP
     elif i_ext == 'webp':
         if ext == 'webp':
-            img.img.save(out_file, ext, quality=quality + 2, method=6)
+            if lossless:
+                img.img.save(out_file,ext,
+                             quality=100,
+                             lossless=True,
+                             method=6)
+            else:
+                img.img.save(out_file, ext,
+                             quality=quality,
+                             method=6)
         elif ext == 'jpeg':
-            img.img.save(out_file, ext, quality=quality, subsampling=0, optimize=True)
+            img.img.save(out_file, ext,
+                         quality=quality,
+                         subsampling=0,
+                         optimize=True)
 
     out_file_size = out_file.tell()
     orig_file_size = os.path.getsize(img.name)
@@ -234,33 +309,20 @@ def img_save(img: Img, args, ext: str, *, compare=True):
     print(f"Result size: {out_file_size}. " +
           "Percentage of original:" +
           "{:.2f}".format(100 * out_file_size / orig_file_size) + "%")
-    if compare and (out_file_size < orig_file_size - 1024)\
-       or not compare:
-        with open(out_path, 'wb') as opened_file:
+    if (
+            compare and (out_file_size < orig_file_size - 100*1024)  # Allow 100k difference
+            or not compare
+    ):
+        with open(out_file_path, 'wb') as opened_file:
             print("Saving result")
             opened_file.write(out_file.getbuffer())
-            os.utime(out_path, (img.atime, img.mtime))
-    elif args['origcopy'] :
+            os.utime(out_file_path, (img.atime, img.mtime))
+    elif origcopy:
         print("Out size is bigger. Copying original")
-        shutil.copy2(img.name, args['out_dir'])
+        shutil.copy2(img.name, output_path)
 
-def file_move(srcdir: str, filename: str, dirname: str, msg: str = ''):
-    print(msg)
-    if not os.path.exists(srcdir + '/' + dirname):
-        os.mkdir(srcdir + '/' + dirname)
-    os.rename(srcdir + '/' + filename, srcdir + '/' + dirname + '/' + filename)
-
-
-def parse_size(size: str):
-    units = {"B": 1, "K": 2**10, "M": 2**20}
-    size = size.upper()
-    if not re.match(r' ', size):
-        size = re.sub(r'([BKM]?)$', r' \1', size)
-    number, unit = [string.strip() for string in size.split()]
-    return int(float(number) * units[unit])
 
 # https://stackoverflow.com/questions/20068945/detect-if-image-is-color-grayscale-or-black-and-white-with-python-pil
-# By Noah Whitman
 def image_iscolorfull(image, thumb_size=40, MSE_cutoff=22, adjust_color_bias=True):
     pil_img = image
     bands = pil_img.getbands()
@@ -291,7 +353,29 @@ def image_iscolorfull(image, thumb_size=40, MSE_cutoff=22, adjust_color_bias=Tru
 def image_has_transparency(image: Image.Image):
     if len(image.getbands()) < 4:  # if 'A' not in image.getbands()
         return False
-    return image.getextrema()[3][0] != 255
+    return image.getextrema()[3][0] < 255-20
+
+
+def size2bytes(size):
+    size_name = ("B", "K", "M", "G")
+    size.upper()
+    size = re.split(r'(\d+)', size)
+    num, unit = int(size[1]), size[2]
+    idx = size_name.index(unit)
+    factor = 1024 ** idx
+    return num * factor
+
+# def bite2size(num, suffix='B'):
+#     for unit in ['','K','M','G']:
+#         if abs(num) < 1024.0:
+#             return "%3.1f%s%s" % (num, unit, suffix)
+#         num /= 1024.0
+#     return "%.1f%s%s" % (num, 'Yi', suffix)
+
+
+def nonimages_mv(i, output_dir):
+    for f in i:
+        Path.rename(f, output_dir / f.name)
 
 
 if __name__ == '__main__':
