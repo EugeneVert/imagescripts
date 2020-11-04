@@ -5,7 +5,6 @@
 import os
 import sys
 import glob
-import stat
 import shutil
 import argparse
 from argparse import RawTextHelpFormatter
@@ -20,15 +19,16 @@ import zipfile
 
 def main(*args):
     parser = argparse.ArgumentParser(description=\
-"Generate video from set of images based on maximum images sizes of that set.\n" +\
+"Generate video from set of images based on maximum images sizes of that set.\n" +
 "Then generates script for imagemagick for convert video back to images.",
                                      formatter_class=RawTextHelpFormatter)
     parser.add_argument('path', nargs='+', help='Path of a file or a folder of files.')
     parser.add_argument('-e', '--extension', default='', help='File extension to filter by.')
     parser.add_argument('-d', '--dimensions', help='Specify video dimensions')
     parser.add_argument('-b', '--background', default='Black', help='Specify video background')
+    parser.add_argument('--noarchive', action='store_true', help="Don't create archive with non-resized original images")
     parser.add_argument('-crf', dest='crf', type=int, default=12, help='Specify video CRF')
-    parser.add_argument('-r', '--fps', dest='fps', type=int, default=2, help='Specify video framerate') # NOTE fps default value check on gen_extract_file in image2video
+    parser.add_argument('-r', '--fps', dest='fps', type=int, default=2, help='Specify video framerate')  # NOTE fps default value check on gen_extract_file in image2video
     args = parser.parse_args(*args)
 
     # Parse paths
@@ -50,17 +50,20 @@ def main(*args):
             print(f)
         files = [os.path.join(os.getcwd(), path) for path in files]
         files = list(files)
-        image2video(files, args.background, args.crf, args.fps, args.dimensions)
+        image2video(files, args, args.dimensions)
     else:
         for dir in files:
             _files = glob.glob(dir + '*' + args.extension)
             _files = [os.path.join(os.getcwd(), path) for path in _files]
             os.chdir(dir)
-            image2video(_files, args.background, args.crf, args.fps, args.dimensions)
+            image2video(_files, args, args.dimensions)
             os.chdir('..')
 
 
-def image2video(in_files, background, crf, fps, dimensions=None): # TODO Specify name of out.mp4
+def image2video(in_files, args, dimensions=None):  # TODO Specify name of out.mp4
+    background = args.background
+    crf = args.crf
+    fps = args.fps
     img_dir = os.path.dirname(in_files[0])
     fullname = os.path.basename(sorted(in_files)[0])
     name, img_ext = os.path.splitext(fullname)
@@ -73,12 +76,11 @@ def image2video(in_files, background, crf, fps, dimensions=None): # TODO Specify
         ffmpeg
         .input((img_dir + '/*' + img_ext).replace('[','\[').replace(']','\]'), pattern_type='glob', framerate=fps)
         .filter('scale', WH[0], WH[1], force_original_aspect_ratio='decrease')
-        .filter('pad', WH[0], WH[1], '(ow-iw)/2', '(oh-ih)/2', background) # TODO background color calculation
+        .filter('pad', WH[0], WH[1], '(ow-iw)/2', '(oh-ih)/2', background)  # TODO background color calculation
         .output(name+'.mp4', crf=crf, preset='veryslow', tune='animation')
         .run()
     )
-    if fps == 2:
-        gen_extract_file(WH, img_size_dict, name, fps)
+    gen_extract_file(WH, img_size_dict, name, args)
 
 
 def images_size_targ(images):
@@ -104,7 +106,8 @@ def list_most_frequent(List):
     return _res
 
 
-def gen_extract_file(WH, img_size_dict, out_dname, fps): # TODO Specify name of out.mp4 (image2video)
+def gen_extract_file(WH, img_size_dict, out_dname, args):  # TODO Specify name of out.mp4 (image2video)
+    fps = args.fps
     img_list = [os.path.basename(i) for i in sorted(img_size_dict.keys())]
     fullname = img_list[0]
     name, ext = os.path.splitext(fullname)
@@ -123,7 +126,9 @@ done
 """.format(fps))
     f.close()
 
-    resize_dict = gen_resize_dict(WH, img_size_dict, img_list, out_dname)
+    if not args.noarchive:
+        resize_dict = gen_resize_dict(WH, img_size_dict, img_list, out_dname)
+    else: resize_dict = ''
     inv_resize_dict = {}
     if resize_dict:
         f = open('transform.sh', 'w')
@@ -136,9 +141,9 @@ done
             else:
                 inv_resize_dict[value].append(key)
         for i in inv_resize_dict.items():
-            f.write('mogrify ' +\
-                    ' -gravity Center ' +\
-                    '-extent ' + str(i[0][0])+'x'+str(i[0][1])+'! ' +\
+            f.write('mogrify ' +
+                    ' -gravity Center ' +
+                    '-extent ' + str(i[0][0])+'x'+str(i[0][1])+'! ' +
                     " ".join(map(lambda x: '"' + ("img{:03d}.webp").format(img_list.index(x) + 1) + '"', i[1])) + ' ; '
                     )
         f.write('cd .. ; ')
@@ -146,9 +151,9 @@ done
         f.close()
 
 
-def list_to_str(list:list):
+def list_to_str(src: list):
     s = str()
-    for i in list:
+    for i in src:
         formated = '"'+ str(i) +'" '
         s += formated
     return s
@@ -180,7 +185,6 @@ def gen_resize_dict(WH: tuple, img_size_dict: dict, img_list: list, out_dname='_
 
 
 def after_gen(path, out_dname):
-    path_d = path + '/' + out_dname
     files = glob.glob(out_dname + '/*.webp')
     print(files)
     for f in files:
