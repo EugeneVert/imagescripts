@@ -211,10 +211,16 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
     elif f.name.endswith('.jpg'):
         if not args.bnwjpg \
            and image_iscolorfull(img.img) in ('grayscale', 'blackandwhite'):
-            print('Black and white image, convert jpg to png')
-            img_save(img, output_dir, 'png',
-                     quality=args.convert_quality,
-                     origcopy=not args.orignocopy)
+            if args.lossless:
+                print('Black and white image, convert jpg to png')
+                img_save(img, output_dir, 'png',
+                        quality=100,
+                        origcopy=not args.orignocopy)
+            else:
+                print('Black and white image, convert jpg to webp')
+                img_save(img, output_dir, 'webp',
+                        quality=args.convert_quality,
+                        origcopy=not args.orignocopy)
         else:
             img_save(img, output_dir, 'jpg',
                      quality=args.convert_quality,
