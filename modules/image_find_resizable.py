@@ -143,7 +143,7 @@ def main(options, argv):
     nonimagetomv = 0
 
     for element in activeopt:
-        if 'mv image size' in element:
+        if 'mv img size px' in element:
             sizetarg = int(element[1])
             print('sizetarg', sizetarg)
         # if 'mv png less that' in element:

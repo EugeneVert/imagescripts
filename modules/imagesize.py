@@ -44,12 +44,12 @@ def argument_parser(*args):
     parser.add_argument('-c:f', dest='convert_format', type=str,
                         help="set 'convert to' Format for all files")
     parser.add_argument('-c:q', dest='convert_quality', type=int, default=int(92),
-                        help='non-jpg Convert Quality \n (default: %(default)s)' +
-                        '(tip: A3&A4 paper 4961/3508/2480/1754/1240)')
+                        help='non-jpg Convert Quality \n (default: %(default)s)')
     parser.add_argument('-lossless', action='store_true',
                         help="Lossless webp")
     parser.add_argument('-resize', dest='size', type=int, default=int(3508),
-                        help='resize to size. \n (default: %(default)s)')
+                        help='resize to size. \n (default: %(default)s)' +
+                        '(tip: A3&A4 paper 4961/3508/2480/1754/1240)')
     parser.add_argument('-o', dest="out_dir", type=str, default=str('./test'),
                         help="output dir \n (default: %(default)s)")
     global ZOPFLI
