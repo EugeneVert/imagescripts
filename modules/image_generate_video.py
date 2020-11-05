@@ -142,8 +142,10 @@ done
                 inv_resize_dict[value].append(key)
         for i in inv_resize_dict.items():
             f.write('mogrify ' +
-                    ' -gravity Center ' +
-                    '-extent ' + str(i[0][0])+'x'+str(i[0][1])+'! ' +
+                    ' -gravity Center' +
+                    ' -quality 95' +
+                    # TODO Lossles images -> resize -> lossy
+                    ' -extent ' + str(i[0][0])+'x'+str(i[0][1])+'! ' +
                     " ".join(map(lambda x: '"' + ("img{:03d}.webp").format(img_list.index(x) + 1) + '"', i[1])) + ' ; '
                     )
         f.write('cd .. ; ')
