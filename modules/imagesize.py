@@ -253,7 +253,8 @@ def img_save(
             img.img.save(out_file, ext,
                          quality=quality,
                          subsampling='keep',
-                         optimize=True)
+                         optimize=True,
+                         progressive=True)
         elif ext == 'png':
             # img.img = img.img.convert(mode='P', palette=Image.ADAPTIVE)
             img.img.save(out_file, ext,
@@ -278,8 +279,9 @@ def img_save(
             img.img = img.img.convert('RGB')
             img.img.save(out_file, ext,
                          quality=quality,
-                         subsampling=1,
-                         optimize=True)
+                         subsampling=2,
+                         optimize=True,
+                         progressive=True)
         elif ext == 'webp':
             if lossless:
                 img.img.save(out_file, ext,
@@ -306,8 +308,9 @@ def img_save(
         elif ext == 'jpeg':
             img.img.save(out_file, ext,
                          quality=quality,
-                         subsampling=0,
-                         optimize=True)
+                         subsampling=2,
+                         optimize=True,
+                         progressive=True)
 
     out_file_size = out_file.tell()
     orig_file_size = os.path.getsize(img.name)
