@@ -28,33 +28,36 @@ def argument_parser(*args):
     parser = argparse.ArgumentParser(description='Reduce images size',
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('path', nargs='?',
-                        help="Dir with images")
+                        help="dir with images")
+    parser.add_argument('-o', dest="out_dir", type=str, default=str('./test'),
+                        help="output dir \n    (default: %(default)s)")
+    parser.add_argument('-c:f', dest='convert_format', type=str,
+                        help="set output format for All files")
+    parser.add_argument('-c:q', dest='convert_quality', type=int, default=int(92),
+                        help='compression level \n    (default: %(default)s)')
+    parser.add_argument('-lossless', action='store_true',
+                        help="lossless webp")
     parser.add_argument('-ask', action='store_true',
                         help='ask resize for each resizeble')
-    parser.add_argument('-mv', action='store_true',
-                        help="""Move non-images to "mv" folder""")
-    parser.add_argument('-kpng', action='store_true',
-                        help="keep (Don't convet) png")
-    parser.add_argument('-orignocopy', action='store_true',
-                        help="Don't copy original images after size compare")
+    parser.add_argument('-resize', dest='size', type=int, default=int(3508),
+                        help='resize to size. \n    (default: %(default)s)' +
+                        '\n    (tip: A3&A4 paper 4961/3508/2480/1754/1240)\n' +
+                        '_____________________________________________\n\n')
     parser.add_argument('-bnwjpg', action='store_true',
                         help="don't convert Black&White jpg's to png")
     parser.add_argument('-msize', dest='fsize_min', default="150K",
                         help="min filesize to process. (B | K | M) (K=2^10)")
-    parser.add_argument('-c:f', dest='convert_format', type=str,
-                        help="set 'convert to' Format for all files")
-    parser.add_argument('-c:q', dest='convert_quality', type=int, default=int(92),
-                        help='non-jpg Convert Quality \n (default: %(default)s)')
-    parser.add_argument('-lossless', action='store_true',
-                        help="Lossless webp")
-    parser.add_argument('-resize', dest='size', type=int, default=int(3508),
-                        help='resize to size. \n (default: %(default)s)' +
-                        '(tip: A3&A4 paper 4961/3508/2480/1754/1240)')
-    parser.add_argument('-o', dest="out_dir", type=str, default=str('./test'),
-                        help="output dir \n (default: %(default)s)")
+    parser.add_argument('-mv', action='store_true',
+                        help="""move non-images to "mv" folder""")
+    parser.add_argument('-kpng', action='store_true',
+                        help="keep (Don't convet) png")
+    parser.add_argument('-usejpg', action='store_true',
+                        help="use jpg instead webp in most cases")
+    parser.add_argument('-orignocopy', action='store_true',
+                        help="don't copy original images after size compare")
     global ZOPFLI
     if ZOPFLI:
-        parser.add_argument('-nozopfli', action='store_true', help="Don't use zopflipng")
+        parser.add_argument('-nozopfli', action='store_true', help="don't use zopflipng")
     args = parser.parse_args(*args)
 
     if ZOPFLI:
@@ -189,7 +192,11 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
                 resized = True
 
     if f.name.endswith('.png'):
-        if args.kpng and not resized and ZOPFLI:
+        if (
+                args.kpng
+                and not resized
+                and ZOPFLI
+        ):
             cmd = ['zopflipng', '-y', f.resolve(), output_dir / f.name]
             pool_dict[f.name] = pool.apply_async(call_zopflipng, (cmd,))
             print('To zopflipng queue')
@@ -204,13 +211,13 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
                      quality=args.convert_quality,
                      origcopy=not args.orignocopy)
         else:
-            img_save(img, output_dir, 'jpg',
-                     quality=args.convert_quality,
-                     origcopy=not args.orignocopy)
+            img_save_webp_or_jpg(img, output_dir, args)
 
     elif f.name.endswith('.jpg'):
-        if not args.bnwjpg \
-           and image_iscolorfull(img.img) in ('grayscale', 'blackandwhite'):
+        if (
+                not args.bnwjpg
+                and image_iscolorfull(img.img) in ('grayscale', 'blackandwhite')
+        ):
             if args.lossless:
                 print('Black and white image, convert jpg to png')
                 img_save(img, output_dir, 'png',
@@ -222,9 +229,7 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
                         quality=args.convert_quality,
                         origcopy=not args.orignocopy)
         else:
-            img_save(img, output_dir, 'jpg',
-                     quality=args.convert_quality,
-                     origcopy=not args.orignocopy)
+            img_save_webp_or_jpg(img, output_dir, args)
 
     else:
         print(colored(str(img.img.format).lower(), 'blue'))
@@ -234,6 +239,17 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
         return pool_dict
 
 
+def img_save_webp_or_jpg(img, output_dir, args):
+    if args.usejpg:
+        img_save(img, output_dir, 'jpg',
+                    quality=args.convert_quality,
+                    origcopy=not args.orignocopy)
+    else:
+        img_save(img, output_dir, 'webp',
+                    quality=args.convert_quality,
+                    origcopy=not args.orignocopy)
+
+       
 def img_save(
         img: Img, output_path, ext: str, *,
         quality=90, lossless=False, compare=True, origcopy=True
@@ -268,6 +284,7 @@ def img_save(
             else:
                 img.img.save(out_file, ext,
                              quality=quality,
+                             lossless=False,
                              method=6)
 
     # PNG
@@ -311,6 +328,9 @@ def img_save(
                          subsampling=2,
                          optimize=True,
                          progressive=True)
+        elif ext == 'png':
+            img.img.save(out_file, ext,
+                         optimize=True)
 
     out_file_size = out_file.tell()
     orig_file_size = os.path.getsize(img.name)
