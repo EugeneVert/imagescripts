@@ -39,13 +39,13 @@ def argument_parser(*args):
                         default=int(92),
                         help='compression level \n    (default: %(default)s)')
     parser.add_argument('-lossless', action='store_true',
-                        help="lossless webp")
+                        help="lossless png to webp")
     parser.add_argument('-ask', action='store_true',
-                        help='ask resize for each resizeble')
-    parser.add_argument('-resize', dest='size', type=int,
+                        help='ask resize for each resizable')
+    parser.add_argument('-resize', dest='size',
                         default=int(3508),
-                        help='set resize to size target.\n' +
-                        '(default: %(default)s)' +
+                        help='set resize size.\n  Add "x" to end to resize by smallest side' +
+                        '\n    (default: %(default)s)' +
                         '\n    (tip: A3&A4 paper 4961/3508/2480/1754/1240)')
     parser.add_argument('-blur', nargs='?', dest='blur_radius', type=float,
                         const=0.5,
@@ -60,8 +60,8 @@ def argument_parser(*args):
                         help="""move non-images to "mv" folder""")
     parser.add_argument('-kpng', action='store_true',
                         help="keep (Don't convet) png")
-    parser.add_argument('-usejpg', action='store_true',
-                        help="use jpg instead webp in most cases")
+    parser.add_argument('-nowebp', action='store_true',
+                        help="don't use webp")
     parser.add_argument('-orignocopy', action='store_true',
                         help="don't copy original images after size compare")
     global ZOPFLI
@@ -178,21 +178,19 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
         shutil.copy2(f, output_dir)
         return
 
-    if args.convert_format:
-        if ZOPFLI and args.convert_format.lower() == 'png' and f.name.endswith('.png'):
-            args.kpng = True
-        else:
-            img_save(img, output_dir, args.convert_format,
-                     quality=args.convert_quality,
-                     lossless=args.lossless,
-                     compare=False)
-            return
-
-    # resize images (ask for each or every image) if they are smaller than size_target
-    size_target = args.size
-    if size_target:
-        if ((int(img.size[0]) > size_target) or
-                (int(img.size[1]) > size_target)):
+    # resize images (has option to ask for each) if they are bigger than args.size
+    # args.size == 0 disables resizing
+    if args.size:
+        if args.size[-1] == 'x': # set resize size by smallest side
+            size_target_min = int(args.size[:-1])
+            if int(min(img.size)) > size_target_min:
+                if (not args.ask) or input(colored('resize? y/n ', 'yellow')).lower() == 'y':
+                    size_target = calc_minsize_target(img.img.size, size_target_min)
+                    print(colored('making image smaller', 'yellow'))
+                    img.img.thumbnail(size_target, Image.LANCZOS)
+                    processed = True
+        elif int(max(img.size)) > int(args.size): # else set resize size by biggest side
+            size_target = int(args.size)
             if (not args.ask) or input(colored('resize? y/n ', 'yellow')).lower() == 'y':
                 size_target = size_target, size_target
                 print(colored('making image smaller', 'yellow'))
@@ -200,9 +198,18 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
                 img.img.thumbnail(size_target, Image.LANCZOS)
                 processed = True
 
+    # optional images bluring for smoothing jpg artifacts
     if args.blur_radius:
         img.img = img.img.filter(GaussianBlur(radius=args.blur_radius))
         processed = True
+
+    # optional convert to format
+    if args.convert_format:
+        img_save(img, output_dir, args.convert_format,
+                    quality=args.convert_quality,
+                    lossless=args.lossless,
+                    compare=False)
+        return
 
     if f.name.endswith('.png'):
         if (
@@ -210,9 +217,11 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
                 and not processed
                 and ZOPFLI
         ):
+            # zopflipng lossless png size reduction
             cmd = ['zopflipng', '-y', f.resolve(), output_dir / f.name]
             pool_dict[f.name] = pool.apply_async(call_zopflipng, (cmd,))
             print('To zopflipng queue')
+
         elif args.kpng:
             img_save(img, output_dir, 'png',
                      quality=args.convert_quality,
@@ -231,7 +240,7 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
                 not args.bnwjpg
                 and image_iscolorfull(img.img) in ('grayscale', 'blackandwhite')
         ):
-            if args.lossless:
+            if args.nowebp:
                 print('Black and white image, convert jpg to png')
                 img_save(img, output_dir, 'png',
                         quality=100,
@@ -240,6 +249,7 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
                 print('Black and white image, convert jpg to webp')
                 img_save(img, output_dir, 'webp',
                         quality=args.convert_quality,
+                        lossless=args.lossless,
                         origcopy=not args.orignocopy)
         else:
             img_save_webp_or_jpg(img, output_dir, args)
@@ -248,12 +258,21 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
         print(colored(str(img.img.format).lower(), 'blue'))
         print(colored("Copying to out dir", 'blue'))
         shutil.copy2(f, output_dir)
+
     if ZOPFLI:
         return pool_dict
 
 
+def calc_minsize_target(img_size, target_minsize):
+    new_maxsize = target_minsize * max(img_size) / min(img_size)
+    new_maxsize = round(new_maxsize)
+    return (target_minsize, new_maxsize) \
+        if img_size[0] == min(img_size) \
+           else (new_maxsize, target_minsize)
+
+
 def img_save_webp_or_jpg(img, output_dir, args):
-    if args.usejpg:
+    if args.nowebp:
         img_save(img, output_dir, 'jpg',
                     quality=args.convert_quality,
                     origcopy=not args.orignocopy)
@@ -268,11 +287,11 @@ def img_save(
         quality=90, lossless=False, compare=True, origcopy=True
 ):
     out_file_path = output_path / (img.name.stem + '.' + ext)
-    out_file = BytesIO()
-    i_ext = img.name.suffix[1:]
+    out_file = BytesIO()        # processed image buffer
+    i_ext = img.name.suffix[1:] # input image extension
     # png  -> png, jpg, webp
     # jpg  -> png, jpg, webp
-    # webp -> jpg, webp
+    # webp -> png, jpg, webp
     if ext == 'jpg':
         ext = 'jpeg'
 
@@ -285,7 +304,9 @@ def img_save(
                          optimize=True,
                          progressive=True)
         elif ext == 'png':
+            # reduce color palette
             # img.img = img.img.convert(mode='P', palette=Image.ADAPTIVE)
+            ###
             img.img.save(out_file, ext,
                          optimize=True)
         elif ext == 'webp':
@@ -345,6 +366,7 @@ def img_save(
             img.img.save(out_file, ext,
                          optimize=True)
 
+    # compare i/o sizes
     out_file_size = out_file.tell()
     orig_file_size = os.path.getsize(img.name)
     print(f"Input size: {orig_file_size}")
