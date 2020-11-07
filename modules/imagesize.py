@@ -6,6 +6,7 @@ import os, argparse, shutil, re, subprocess
 from pathlib import Path
 from io import BytesIO
 from PIL import Image, ImageStat
+from PIL.ImageFilter import GaussianBlur
 from termcolor import colored
 
 
@@ -29,23 +30,31 @@ def argument_parser(*args):
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('path', nargs='?',
                         help="dir with images")
-    parser.add_argument('-o', dest="out_dir", type=str, default=str('./test'),
+    parser.add_argument('-o', dest="out_dir", type=str,
+                        default=str('./test'),
                         help="output dir \n    (default: %(default)s)")
     parser.add_argument('-c:f', dest='convert_format', type=str,
                         help="set output format for All files")
-    parser.add_argument('-c:q', dest='convert_quality', type=int, default=int(92),
+    parser.add_argument('-c:q', dest='convert_quality', type=int,
+                        default=int(92),
                         help='compression level \n    (default: %(default)s)')
     parser.add_argument('-lossless', action='store_true',
                         help="lossless webp")
     parser.add_argument('-ask', action='store_true',
                         help='ask resize for each resizeble')
-    parser.add_argument('-resize', dest='size', type=int, default=int(3508),
-                        help='resize to size. \n    (default: %(default)s)' +
-                        '\n    (tip: A3&A4 paper 4961/3508/2480/1754/1240)\n' +
+    parser.add_argument('-resize', dest='size', type=int,
+                        default=int(3508),
+                        help='set resize to size target.\n' +
+                        '(default: %(default)s)' +
+                        '\n    (tip: A3&A4 paper 4961/3508/2480/1754/1240)')
+    parser.add_argument('-blur', nargs='?', dest='blur_radius', type=float,
+                        const=0.5,
+                        help='add blur to image\n    (const: %(const)s)\n' +
                         '_____________________________________________\n\n')
     parser.add_argument('-bnwjpg', action='store_true',
                         help="don't convert Black&White jpg's to png")
-    parser.add_argument('-msize', dest='fsize_min', default="150K",
+    parser.add_argument('-msize', dest='fsize_min',
+                        default="150K",
                         help="min filesize to process. (B | K | M) (K=2^10)")
     parser.add_argument('-mv', action='store_true',
                         help="""move non-images to "mv" folder""")
@@ -139,7 +148,7 @@ def images_process(input_images, input_dir, args, pool):
 
 
 def image_process(f, input_dir, output_dir, args, *, pool=None):
-    resized = False
+    processed = False
     try:
         img = Img(f)
     except IOError:
@@ -189,12 +198,16 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
                 print(colored('making image smaller', 'yellow'))
                 # Lanczos filter is slow, but keeps details and edges. BICUBIC as alternative?
                 img.img.thumbnail(size_target, Image.LANCZOS)
-                resized = True
+                processed = True
+
+    if args.blur_radius:
+        img.img = img.img.filter(GaussianBlur(radius=args.blur_radius))
+        processed = True
 
     if f.name.endswith('.png'):
         if (
                 args.kpng
-                and not resized
+                and not processed
                 and ZOPFLI
         ):
             cmd = ['zopflipng', '-y', f.resolve(), output_dir / f.name]
