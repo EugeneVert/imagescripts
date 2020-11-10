@@ -36,14 +36,14 @@ def argument_parser(*args):
     parser.add_argument('-c:f', dest='convert_format', type=str,
                         help="set output format for All files")
     parser.add_argument('-c:q', dest='convert_quality', type=int,
-                        default=int(92),
+                        default=int(93),
                         help='compression level \n    (default: %(default)s)')
     parser.add_argument('-lossless', action='store_true',
                         help="lossless png to webp")
     parser.add_argument('-ask', action='store_true',
                         help='ask resize for each resizable')
-    parser.add_argument('-resize', dest='size',
-                        default=int(3508),
+    parser.add_argument('-resize', dest='size', type=str,
+                        default=str(3508),
                         help='set resize size.\n  Add "x" to end to resize by smallest side' +
                         '\n    (default: %(default)s)' +
                         '\n    (tip: A3&A4 paper 4961/3508/2480/1754/1240)')
