@@ -31,15 +31,41 @@ def main(*args):
              tempfile.TemporaryDirectory() as tempdir:
             zipf.extractall(tempdir)
             demuxerf = Path(tempdir + '/concat_demuxer')
-            with open(tempdir + '/animation.json') as animfile,\
+
+            # find animation data json
+            if os.path.exists(tempdir + '/animation.json'):
+                # {"smthg": {..., 'frames': {'file': 'FRAME' 'delay': DELAY}}}
+                animdatafile = tempdir + '/animation.json'
+                animdatatype = 1
+            elif os.path.exists(f.name + '.js'):
+                # {..., 'frames': {'file': 'FRAME' 'delay': DELAY}}
+                animdatafile = f.name + '.js'
+                animdatatype = 2
+            elif os.path.exists(f.name[:-3] + '.js'):
+                # {..., 'frames': {'file': 'FRAME' 'delay': DELAY}}
+                animdatafile = f.name[:-3] + '.js'
+                animdatatype = 2
+            else:
+                print("Error, no animation data file")
+                raise IOError("can't find animation data")
+
+            # open animation data and create demuxer file for ffmpeg
+            with open(animdatafile) as animfile,\
                  open(tempdir + '/concat_demuxer', 'x') as demuxerf:
                 animdata: dict = json.load(animfile)
                 # print(animdata)
-                for i in list(animdata.values())[0]['frames']:
-                    if 'file' not in i and 'delay' not in i:
-                        continue
-                    demuxerf.write("file '" + tempdir + '/' + i['file'] + "'\n")
-                    demuxerf.write('duration ' + str(i['delay']/1000) + '\n')
+                if animdatatype == 1:
+                    for i in list(animdata.values())[0]['frames']:
+                        if 'file' not in i and 'delay' not in i:
+                            continue
+                        demuxerf.write("file '" + tempdir + '/' + i['file'] + "'\n")
+                        demuxerf.write('duration ' + str(i['delay']/1000) + '\n')
+                elif animdatatype == 2:
+                    for i in animdata['frames']:
+                        if 'file' not in i and 'delay' not in i:
+                            continue
+                        demuxerf.write("file '" + tempdir + '/' + i['file'] + "'\n")
+                        demuxerf.write('duration ' + str(i['delay']/1000) + '\n')
                 demuxerf.write("file '" + tempdir + '/' + i['file'] + "'\n")
                 demuxerf.close()
                 print(Path.name)
