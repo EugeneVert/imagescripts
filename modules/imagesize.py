@@ -64,6 +64,8 @@ def argument_parser(*args):
                         help="don't use webp")
     parser.add_argument('-orignocopy', action='store_true',
                         help="don't copy original images after size compare")
+    parser.add_argument('-no_cp_to_old', action='store_true',
+                        help="don't copy original images to ./old/")
     global ZOPFLI
     if ZOPFLI:
         parser.add_argument('-nozopfli', action='store_true', help="don't use zopflipng")
@@ -102,6 +104,17 @@ def main(*args):
     Path.mkdir(input_dir / NONIMAGES_DIR, exist_ok=True)
     if args.mv:
         nonimages_mv(input_dir_nonimages, input_dir / NONIMAGES_DIR)
+
+    # move original files to ./old/
+    if not args.no_cp_to_old:
+        i: Path
+        Path.mkdir(input_dir / 'old', exist_ok=True)
+        old_path = input_dir / 'old'
+        print(old_path)
+        for i in input_dir_images:
+            i.rename(old_path / i.name)
+        input_dir_images = \
+            [old_path / f.name for f in input_dir_images]
 
     images_process(input_dir_images, input_dir, args, pool)
 
@@ -180,23 +193,27 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
 
     # resize images (has option to ask for each) if they are bigger than args.size
     # args.size == 0 disables resizing
-    if args.size:
+    if args.size != '0':
         if args.size[-1] == 'x': # set resize size by smallest side
             size_target_min = int(args.size[:-1])
             if int(min(img.size)) > size_target_min:
+               
                 if (not args.ask) or input(colored('resize? y/n ', 'yellow')).lower() == 'y':
                     size_target = calc_minsize_target(img.img.size, size_target_min)
                     print(colored('making image smaller', 'yellow'))
                     img.img.thumbnail(size_target, Image.LANCZOS)
                     processed = True
-        elif int(max(img.size)) > int(args.size): # else set resize size by biggest side
-            size_target = int(args.size)
-            if (not args.ask) or input(colored('resize? y/n ', 'yellow')).lower() == 'y':
-                size_target = size_target, size_target
-                print(colored('making image smaller', 'yellow'))
-                # Lanczos filter is slow, but keeps details and edges. BICUBIC as alternative?
-                img.img.thumbnail(size_target, Image.LANCZOS)
-                processed = True
+
+        else:
+            if int(max(img.size)) > int(args.size):  # else set resize size by biggest side
+                size_target = int(args.size)
+
+                if (not args.ask) or input(colored('resize? y/n ', 'yellow')).lower() == 'y':
+                    size_target = size_target, size_target
+                    print(colored('making image smaller', 'yellow'))
+                    # Lanczos filter is slow, but keeps details and edges. BICUBIC as alternative?
+                    img.img.thumbnail(size_target, Image.LANCZOS)
+                    processed = True
 
     # optional images bluring for smoothing jpg artifacts
     if args.blur_radius:
@@ -206,9 +223,9 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
     # optional convert to format
     if args.convert_format:
         img_save(img, output_dir, args.convert_format,
-                    quality=args.convert_quality,
-                    lossless=args.lossless,
-                    compare=False)
+                 quality=args.convert_quality,
+                 lossless=args.lossless,
+                 compare=False)
         return
 
     if f.name.endswith('.png'):
@@ -243,14 +260,14 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
             if args.nowebp:
                 print('Black and white image, convert jpg to png')
                 img_save(img, output_dir, 'png',
-                        quality=100,
-                        origcopy=not args.orignocopy)
+                         quality=100,
+                         origcopy=not args.orignocopy)
             else:
                 print('Black and white image, convert jpg to webp')
                 img_save(img, output_dir, 'webp',
-                        quality=args.convert_quality,
-                        lossless=args.lossless,
-                        origcopy=not args.orignocopy)
+                         quality=args.convert_quality,
+                         lossless=args.lossless,
+                         origcopy=not args.orignocopy)
         else:
             img_save_webp_or_jpg(img, output_dir, args)
 
@@ -268,20 +285,21 @@ def calc_minsize_target(img_size, target_minsize):
     new_maxsize = round(new_maxsize)
     return (target_minsize, new_maxsize) \
         if img_size[0] == min(img_size) \
-           else (new_maxsize, target_minsize)
+        else (new_maxsize, target_minsize)
 
 
 def img_save_webp_or_jpg(img, output_dir, args):
     if args.nowebp:
         img_save(img, output_dir, 'jpg',
-                    quality=args.convert_quality,
-                    origcopy=not args.orignocopy)
+                 quality=args.convert_quality,
+                 origcopy=not args.orignocopy)
     else:
         img_save(img, output_dir, 'webp',
-                    quality=args.convert_quality,
-                    origcopy=not args.orignocopy)
+                 quality=args.convert_quality,
+                 lossless=args.lossless,
+                 origcopy=not args.orignocopy)
 
-       
+
 def img_save(
         img: Img, output_path, ext: str, *,
         quality=90, lossless=False, compare=True, origcopy=True
@@ -314,7 +332,7 @@ def img_save(
                 img.img.save(out_file, ext,
                              quality=100,
                              lossless=True,
-                             method=6)
+                             method=4)
             else:
                 img.img.save(out_file, ext,
                              quality=quality,
@@ -338,7 +356,7 @@ def img_save(
                 img.img.save(out_file, ext,
                              quality=100,
                              lossless=True,
-                             method=6)
+                             method=4)
             else:
                 img.img.save(out_file, ext,
                              quality=quality,
