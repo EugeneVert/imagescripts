@@ -195,6 +195,19 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
         shutil.copy2(f, output_dir)
         return
 
+    # optional images bluring for smoothing jpg artifacts
+    if args.blur_radius:
+        img.img = img.img.convert('RGB')
+        img.img = img.img.filter(GaussianBlur(radius=args.blur_radius))
+        processed = True
+
+    if args.sharpen:
+        img.img = img.img.filter(UnsharpMask(radius=args.sharpen, percent=150, threshold=0))
+        # img.img = img.img.filter(Kernel((3, 3), [0    , -1.14, 0    ,
+        #                                          -1.14, 5.56 , -1.14,
+        #                                          0    , -1.14, 0    ], scale=args.sharpen ))
+        processed = True
+
     # resize images (has option to ask for each) if they are bigger than args.size
     # args.size == 0 disables resizing
     if args.size != '0':
@@ -218,18 +231,6 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
                     # Lanczos filter is slow, but keeps details and edges. BICUBIC as alternative?
                     img.img.thumbnail(size_target, Image.LANCZOS)
                     processed = True
-
-    # optional images bluring for smoothing jpg artifacts
-    if args.blur_radius:
-        img.img = img.img.filter(GaussianBlur(radius=args.blur_radius))
-        processed = True
-
-    if args.sharpen:
-        img.img = img.img.filter(UnsharpMask(radius=args.sharpen, percent=150, threshold=0))
-        # img.img = img.img.filter(Kernel((3, 3), [0    , -1.14, 0    ,
-        #                                          -1.14, 5.56 , -1.14,
-        #                                          0    , -1.14, 0    ], scale=args.sharpen ))
-        processed = True
 
     # optional convert to format
     if args.convert_format:
