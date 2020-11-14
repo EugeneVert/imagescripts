@@ -6,7 +6,7 @@ import os, argparse, shutil, re, subprocess
 from pathlib import Path
 from io import BytesIO
 from PIL import Image, ImageStat
-from PIL.ImageFilter import GaussianBlur
+from PIL.ImageFilter import GaussianBlur, UnsharpMask, Kernel
 from termcolor import colored
 
 
@@ -50,7 +50,10 @@ def argument_parser(*args):
                         '\n    (tip: A3&A4 paper 4961/3508/2480/1754/1240)')
     parser.add_argument('-blur', nargs='?', dest='blur_radius', type=float,
                         const=0.5,
-                        help='add blur to image\n    (const: %(const)s)\n' +
+                        help='add blur to image\n    (const: %(const)s)\n')
+    parser.add_argument('-sharpen', nargs='?', dest='sharpen', type=float,
+                        const=1,
+                        help='add sharpen filter to image\n'+
                         '_____________________________________________\n\n')
     parser.add_argument('-bnwjpg', action='store_true',
                         help="don't convert Black&White jpg's to png")
@@ -219,6 +222,13 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
     # optional images bluring for smoothing jpg artifacts
     if args.blur_radius:
         img.img = img.img.filter(GaussianBlur(radius=args.blur_radius))
+        processed = True
+
+    if args.sharpen:
+        img.img = img.img.filter(UnsharpMask(radius=args.sharpen, percent=150, threshold=0))
+        # img.img = img.img.filter(Kernel((3, 3), [0    , -1.14, 0    ,
+        #                                          -1.14, 5.56 , -1.14,
+        #                                          0    , -1.14, 0    ], scale=args.sharpen ))
         processed = True
 
     # optional convert to format
