@@ -10,7 +10,8 @@ from PIL.ImageFilter import GaussianBlur
 from termcolor import colored
 
 
-NONIMAGES_DIR = Path('./mv')
+NONIMAGES_DIR_NAME = './mv'
+OLDIMAGES_DIR_NAME = 'old'
 
 if shutil.which('zopflipng'):
     from multiprocessing import cpu_count
@@ -101,43 +102,32 @@ def main(*args):
         print(colored('No images', 'red'))
         return
 
-    Path.mkdir(input_dir / NONIMAGES_DIR, exist_ok=True)
+    Path.mkdir(input_dir / NONIMAGES_DIR_NAME, exist_ok=True)
+    nonimages_dir = input_dir / NONIMAGES_DIR_NAME
     if args.mv:
-        nonimages_mv(input_dir_nonimages, input_dir / NONIMAGES_DIR)
+        nonimages_mv(input_dir_nonimages, nonimages_dir)
 
-    # move original files to ./old/
+    images_process(input_dir_images, input_dir, args, pool)
+
+    if not os.listdir(nonimages_dir):
+        Path.rmdir(nonimages_dir)
+
+
+def images_process(input_images, input_dir, args, pool):
     if not args.no_cp_to_old:
         i: Path
         Path.mkdir(input_dir / 'old', exist_ok=True)
         old_path = input_dir / 'old'
         print(old_path)
-        for i in input_dir_images:
-            i.rename(old_path / i.name)
-        input_dir_images = \
-            [old_path / f.name for f in input_dir_images]
 
-    images_process(input_dir_images, input_dir, args, pool)
-
-    if not os.listdir(input_dir / NONIMAGES_DIR):
-        Path.rmdir(input_dir / NONIMAGES_DIR)
-
-
-class Img:
-    def __init__(self, f):
-        self.name = f
-        self.img: Image.Image = Image.open(f)
-        self.size = self.img.size
-        self.atime = os.path.getatime(f)
-        self.mtime = os.path.getmtime(f)
-
-
-def images_process(input_images, input_dir, args, pool):
     output_dir = input_dir / Path(args.out_dir)
     Path.mkdir(output_dir, exist_ok=True)
 
     if ZOPFLI:
         global pool_dict
         for f in input_images:
+            if not args.no_cp_to_old:
+                f = f.rename(old_path / f.name)
             # process image and get info about file in zopfli pool
             res = image_process(f, input_dir, output_dir, args, pool=pool)
             print()
@@ -156,8 +146,19 @@ def images_process(input_images, input_dir, args, pool):
 
     else:
         for f in input_images:
+            if not args.no_cp_to_old:
+                f = f.rename(old_path / f.name)
             image_process(f, input_dir, output_dir, args)
             print()
+
+
+class Img:
+    def __init__(self, f):
+        self.name = f
+        self.img: Image.Image = Image.open(f)
+        self.size = self.img.size
+        self.atime = os.path.getatime(f)
+        self.mtime = os.path.getmtime(f)
 
 
 def image_process(f, input_dir, output_dir, args, *, pool=None):
@@ -168,7 +169,7 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
         print(colored("IOError;", 'red'))
         if args.mv:
             print("Moving to mv dir")
-            nonimages_mv(f, input_dir / NONIMAGES_DIR)
+            nonimages_mv(f, input_dir / NONIMAGES_DIR_NAME)
         return
 
     print(f.name)
@@ -179,7 +180,7 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
         print(colored('APNG;', 'red'))
         if args.mv:
             print("Moving to mv dir")
-            nonimages_mv(f, NONIMAGES_DIR)
+            nonimages_mv(f, input_dir / NONIMAGES_DIR_NAME)
         return
 
     # copy non-png files to output dir if they have small filesize
