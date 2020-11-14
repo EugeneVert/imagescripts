@@ -55,9 +55,11 @@ def main(*args):
         for dir in files:
             _files = glob.glob(dir + '*' + args.extension)
             _files = [os.path.join(os.getcwd(), path) for path in _files]
+
+            owd = os.getcwd()
             os.chdir(dir)
             image2video(_files, args, args.dimensions)
-            os.chdir('..')
+            os.chdir(owd)
 
 
 def image2video(in_files, args, dimensions=None):  # TODO Specify name of out.mp4
@@ -66,7 +68,9 @@ def image2video(in_files, args, dimensions=None):  # TODO Specify name of out.mp
     fps = args.fps
     img_dir = os.path.dirname(in_files[0])
     fullname = os.path.basename(sorted(in_files)[0])
+    # set output filename same as first image
     name, img_ext = os.path.splitext(fullname)
+    # find most frequent size
     WH, img_size_dict = images_size_targ(in_files)
     if dimensions:
         WH = tuple(map(int, dimensions.split('x')))
@@ -112,6 +116,13 @@ def gen_extract_file(WH, img_size_dict, out_dname, args):  # TODO Specify name o
     fullname = img_list[0]
     name, ext = os.path.splitext(fullname)
 
+    os.makedirs(out_dname, exist_ok=True)
+
+    f = open(out_dname + '/_names.txt', 'w')
+    for i in sorted(img_size_dict.keys()):
+        f.write(os.path.basename(i) + '\n')
+    f.close()
+
     f = open('_frames.sh', 'w')
     f.write('#!/usr/bin/env bash\n')
     f.write("""
@@ -126,12 +137,18 @@ done
 """.format(fps))
     f.close()
 
+    print('rename.sh')
+    f = open(out_dname + '/_rename.sh', 'w')
+    f.write("""ls ./*.webp | paste -d' ' - "./_names.txt" | xargs -n2 mv""")
+    f.close()
+
     if not args.noarchive:
         resize_dict = gen_resize_dict(WH, img_size_dict, img_list, out_dname)
     else: resize_dict = ''
     inv_resize_dict = {}
+
     if resize_dict:
-        f = open('transform.sh', 'w')
+        f = open('_transform.sh', 'w')
         f.write('\n')
         f.write('if [ -d "./' + name + '" ]; then ')
         f.write('cd ./' + name + ' || exit ; ')
@@ -161,11 +178,10 @@ def list_to_str(src: list):
     return s
 
 
-def gen_resize_dict(WH: tuple, img_size_dict: dict, img_list: list, out_dname='_d'):
+def gen_resize_dict(WH: tuple, img_size_dict: dict, img_list: list, out_dname):
     resize_dict = {}
     img_size_list = list(img_size_dict.items())
     path = os.path.dirname(img_size_list[0][0])
-    os.makedirs(path + '/' + out_dname, exist_ok=True)
     for i in img_size_list:
         name = os.path.basename(i[0])
         outname = ("img{:03d}.webp").format(img_list.index(name) + 1)
