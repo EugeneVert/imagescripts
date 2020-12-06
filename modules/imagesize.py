@@ -68,8 +68,8 @@ def argument_parser(*args):
                         help="don't use webp")
     parser.add_argument('-orignocopy', action='store_true',
                         help="don't copy original images after size compare")
-    parser.add_argument('-no_cp_to_old', action='store_true',
-                        help="don't copy original images to ./old/")
+    parser.add_argument('-mvo', dest='out_orig_dir',
+                        help="mv original images to folder")
     global ZOPFLI
     if ZOPFLI:
         parser.add_argument('-nozopfli', action='store_true', help="don't use zopflipng")
@@ -117,11 +117,11 @@ def main(*args):
 
 
 def images_process(input_images, input_dir, args, pool):
-    if not args.no_cp_to_old:
+    if args.out_orig_dir:
         i: Path
-        Path.mkdir(input_dir / 'old', exist_ok=True)
-        old_path = input_dir / 'old'
-        print(old_path)
+        Path.mkdir(input_dir / args.out_orig_dir, exist_ok=True)
+        output_orig_dir = input_dir / args.out_orig_dir
+        print(output_orig_dir)
 
     output_dir = input_dir / Path(args.out_dir)
     Path.mkdir(output_dir, exist_ok=True)
@@ -129,8 +129,8 @@ def images_process(input_images, input_dir, args, pool):
     if ZOPFLI:
         global pool_dict
         for f in input_images:
-            if not args.no_cp_to_old:
-                f = f.rename(old_path / f.name)
+            if args.out_orig_dir:
+                f = f.rename(output_orig_dir / f.name)
             # process image and get info about file in zopfli pool
             res = image_process(f, input_dir, output_dir, args, pool=pool)
             print()
@@ -149,8 +149,8 @@ def images_process(input_images, input_dir, args, pool):
 
     else:
         for f in input_images:
-            if not args.no_cp_to_old:
-                f = f.rename(old_path / f.name)
+            if args.out_orig_dir:
+                f = f.rename(output_orig_dir / f.name)
             image_process(f, input_dir, output_dir, args)
             print()
 
