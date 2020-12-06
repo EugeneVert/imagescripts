@@ -27,6 +27,7 @@ def main(*args):
     os.chdir(os.path.abspath(target_dir))
     files = Path('.').glob('*.zip')
     for f in files:
+        print(f)
         with zipfile.ZipFile(f.name, 'r') as zipf,\
              tempfile.TemporaryDirectory() as tempdir:
             zipf.extractall(tempdir)
@@ -41,9 +42,9 @@ def main(*args):
                 # {..., 'frames': {'file': 'FRAME' 'delay': DELAY}}
                 animdatafile = f.name + '.js'
                 animdatatype = 2
-            elif os.path.exists(f.name[:-3] + '.js'):
+            elif os.path.exists(f.name[:-4] + '.js'):
                 # {..., 'frames': {'file': 'FRAME' 'delay': DELAY}}
-                animdatafile = f.name[:-3] + '.js'
+                animdatafile = f.name[:-4] + '.js'
                 animdatatype = 2
             else:
                 print("Error, no animation data file")
