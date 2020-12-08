@@ -328,11 +328,18 @@ def img_save(
     # JPEG
     if i_ext == 'jpg':
         if ext == 'jpeg':
-            img.img.save(out_file, ext,
-                         quality=quality,
-                         subsampling='keep',
-                         optimize=True,
-                         progressive=True)
+            try:
+                img.img.save(out_file, ext,
+                            quality=quality,
+                            subsampling='keep',
+                            optimize=True,
+                            progressive=True)
+            except ValueError:
+                print(colored("Can't keep JPG subsampling the same", "red"))
+                img.img.save(out_file, ext,
+                             quality=quality,
+                             optimize=True,
+                             progressive=True)
         elif ext == 'png':
             # reduce color palette
             # img.img = img.img.convert(mode='P', palette=Image.ADAPTIVE)
