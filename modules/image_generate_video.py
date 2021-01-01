@@ -151,7 +151,7 @@ done
         f = open('_transform.sh', 'w')
         f.write('\n')
         f.write('if [ -d "./' + name + '" ]; then ')
-        f.write('cd ./' + name + ' || exit ; ')
+        f.write('cd "./' + name + '" || exit ; ')
         for key, value in sorted(resize_dict.items()):
             if value not in inv_resize_dict:
                 inv_resize_dict[value] = [key]

@@ -12,6 +12,7 @@ from termcolor import colored
 
 NONIMAGES_DIR_NAME = './mv'
 OLDIMAGES_DIR_NAME = 'old'
+PERCENTAGE = ''
 
 if shutil.which('zopflipng'):
     from multiprocessing import cpu_count
@@ -27,6 +28,7 @@ def call_zopflipng(cmd):
 
 
 def argument_parser(*args):
+    global PERCENTAGE
     parser = argparse.ArgumentParser(description='Reduce images size',
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('path', nargs='?',
@@ -60,6 +62,9 @@ def argument_parser(*args):
     parser.add_argument('-msize', dest='fsize_min',
                         default="150K",
                         help="min filesize to process. (B | K | M) (K=2^10)")
+    parser.add_argument('-percent', dest='percentage',
+                        default=100,
+                        help="Max percentage of original file to save")
     parser.add_argument('-mv', action='store_true',
                         help="""move non-images to "mv" folder""")
     parser.add_argument('-kpng', action='store_true',
@@ -80,6 +85,8 @@ def argument_parser(*args):
         pool = Pool(processes=cpu_count()) if ZOPFLI else None
     else:
         pool = None
+
+    PERCENTAGE = int(args.percentage)
 
     return args, pool
 
@@ -316,6 +323,7 @@ def img_save(
         img: Img, output_path, ext: str, *,
         quality=90, lossless=False, compare=True, origcopy=True
 ):
+    global PERCENTAGE
     out_file_path = output_path / (img.name.stem + '.' + ext)
     out_file = BytesIO()        # processed image buffer
     i_ext = img.name.suffix[1:] # input image extension
@@ -406,12 +414,13 @@ def img_save(
     # compare i/o sizes
     out_file_size = out_file.tell()
     orig_file_size = os.path.getsize(img.name)
-    print(f"Input size: {orig_file_size}")
-    print(f"Result size: {out_file_size}. " +
-          "Percentage of original:" +
-          "{:.2f}".format(100 * out_file_size / orig_file_size) + "%")
+    percentage_of_original = "{:.2f}".format(100 * out_file_size / orig_file_size)
+    print(f"Input size : {orig_file_size}")
+    print(f"Result size: {out_file_size}\n" +
+          "Percentage of original: " +
+          percentage_of_original + "%")
     if (
-            compare and (out_file_size < orig_file_size - 100*1024)  # Allow 100k difference
+            compare and (float(percentage_of_original) < PERCENTAGE)
             or not compare
     ):
         with open(out_file_path, 'wb') as opened_file:
@@ -419,8 +428,10 @@ def img_save(
             opened_file.write(out_file.getbuffer())
             os.utime(out_file_path, (img.atime, img.mtime))
     elif origcopy:
-        print("Out size is bigger. Copying original")
+        print("Copying original")
         shutil.copy2(img.name, output_path)
+    else:
+        print("Image not saved")
 
 
 # https://stackoverflow.com/questions/20068945/detect-if-image-is-color-grayscale-or-black-and-white-with-python-pil

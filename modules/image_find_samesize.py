@@ -18,10 +18,6 @@ def main(argv):
         dir_target = os.getcwd()
     files_in_dir = [f.name for f in os.scandir(dir_target) if f.is_file()]
     print(colored('Path: ' + dir_target, 'yellow'))
-    if(not [f for f in files_in_dir if f.endswith(('.png', '.jpg'))]):
-        print('\033[4m' + colored('No images', 'red') + '\033[0m')
-        sys.exit('')
-
     img_c_min = int(input('Min images count to mv '))
     input('Press any key')
 
@@ -41,13 +37,10 @@ def images_find_eq_res(files_in_dir, dir_target, img_c_min):
     for i in files_in_dir:
         img = None
         print('file: ', i)
-        if i.endswith(('.png', '.jpg')):
-            try:
-                img = Image.open(i)
-            except:
-                print("can't open open image")
-                continue
-        else:
+        try:
+            img = Image.open(i)
+        except:
+            print("can't open open image")
             continue
 
         img_res = img.size
