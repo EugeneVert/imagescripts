@@ -6,7 +6,7 @@ import os, argparse, shutil, re, subprocess
 from pathlib import Path
 from io import BytesIO
 from PIL import Image, ImageStat
-from PIL.ImageFilter import GaussianBlur, UnsharpMask, Kernel
+from PIL.ImageFilter import GaussianBlur, UnsharpMask
 from termcolor import colored
 
 
@@ -29,55 +29,75 @@ def call_zopflipng(cmd):
 
 def argument_parser(*args):
     global PERCENTAGE
-    parser = argparse.ArgumentParser(description='Reduce images size',
-                                     formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('path', nargs='?',
-                        help="dir with images")
-    parser.add_argument('-o', dest="out_dir", type=str,
-                        default=str('./test'),
-                        help="output dir \n    (default: %(default)s)")
-    parser.add_argument('-c:f', dest='convert_format', type=str,
-                        help="set output format for All files")
-    parser.add_argument('-c:q', dest='convert_quality', type=int,
-                        default=int(93),
-                        help='compression level \n    (default: %(default)s)')
-    parser.add_argument('-lossless', action='store_true',
-                        help="lossless png to webp")
-    parser.add_argument('-ask', action='store_true',
-                        help='ask resize for each resizable')
-    parser.add_argument('-resize', dest='size', type=str,
-                        default=str(3508),
-                        help='set resize size.\n  Add "x" to end to resize by smallest side' +
-                        '\n    (default: %(default)s)' +
-                        '\n    (tip: A3&A4 paper 4961/3508/2480/1754/1240)')
-    parser.add_argument('-blur', nargs='?', dest='blur_radius', type=float,
-                        const=0.5,
-                        help='add blur to image\n    (const: %(const)s)\n')
-    parser.add_argument('-sharpen', nargs='?', dest='sharpen', type=float,
-                        const=1,
-                        help='add sharpen filter to image\n'+
-                        '_____________________________________________\n\n')
-    parser.add_argument('-bnwjpg', action='store_true',
-                        help="don't convert Black&White jpg's to png")
-    parser.add_argument('-msize', dest='fsize_min',
-                        default="150K",
-                        help="min filesize to process. (B | K | M) (K=2^10)")
-    parser.add_argument('-percent', dest='percentage',
-                        default=100,
-                        help="Max percentage of original file to save")
-    parser.add_argument('-mv', action='store_true',
-                        help="""move non-images to "mv" folder""")
-    parser.add_argument('-kpng', action='store_true',
-                        help="keep (Don't convet) png")
-    parser.add_argument('-nowebp', action='store_true',
-                        help="don't use webp")
-    parser.add_argument('-orignocopy', action='store_true',
-                        help="don't copy original images after size compare")
-    parser.add_argument('-mvo', dest='out_orig_dir',
-                        help="mv original images to folder")
+    parser = argparse.ArgumentParser(
+        description='Reduce images size',
+        formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument(
+        'path', nargs='?',
+        help="dir with images")
+    parser.add_argument(
+        '-o', dest="out_dir", type=str,
+        default=str('./test'),
+        help="output dir \n    (default: %(default)s)")
+    parser.add_argument(
+        '-c:f', dest='convert_format', type=str,
+        help="set output format for All files")
+    parser.add_argument(
+        '-c:q', dest='convert_quality', type=int,
+        default=int(93),
+        help='compression level \n    (default: %(default)s)')
+    parser.add_argument(
+        '-lossless', action='store_true',
+        help="lossless png to webp")
+    parser.add_argument(
+        '-ask', action='store_true',
+        help='ask resize for each resizable')
+    parser.add_argument(
+        '-resize', dest='size', type=str,
+        default=str(3508),
+        help='set resize size.\n  Add "x" to end to resize by smallest side' +
+        '\n    (default: %(default)s)' +
+        '\n    (tip: A3&A4 paper 4961/3508/2480/1754/1240)')
+    parser.add_argument(
+        '-blur', nargs='?', dest='blur_radius', type=float,
+        const=0.5,
+        help='add blur to image\n    (const: %(const)s)\n')
+    parser.add_argument(
+        '-sharpen', nargs='?', dest='sharpen', type=float,
+        const=1,
+        help='add sharpen filter to image\n' +
+        '_____________________________________________\n\n')
+    parser.add_argument(
+        '-bnwjpg', action='store_true',
+        help="don't convert Black&White jpg's to png")
+    parser.add_argument(
+        '-msize', dest='fsize_min',
+        default="150K",
+        help="min filesize to process. (B | K | M) (K=2^10)")
+    parser.add_argument(
+        '-percent', dest='percentage',
+        default=100,
+        help="Max percentage of original file to save")
+    parser.add_argument(
+        '-mv', action='store_true',
+        help="""move non-images to "mv" folder""")
+    parser.add_argument(
+        '-kpng', action='store_true',
+        help="keep (Don't convet) png")
+    parser.add_argument(
+        '-nowebp', action='store_true',
+        help="don't use webp")
+    parser.add_argument(
+        '-orignocopy', action='store_true',
+        help="don't copy original images after size compare")
+    parser.add_argument(
+        '-mvo', dest='out_orig_dir',
+        help="mv original images to folder")
     global ZOPFLI
     if ZOPFLI:
-        parser.add_argument('-nozopfli', action='store_true', help="don't use zopflipng")
+        parser.add_argument(
+            '-nozopfli', action='store_true',
+            help="don't use zopflipng")
     args = parser.parse_args(*args)
 
     if ZOPFLI:
@@ -338,10 +358,10 @@ def img_save(
         if ext == 'jpeg':
             try:
                 img.img.save(out_file, ext,
-                            quality=quality,
-                            subsampling='keep',
-                            optimize=True,
-                            progressive=True)
+                             quality=quality,
+                             subsampling='keep',
+                             optimize=True,
+                             progressive=True)
             except ValueError:
                 print(colored("Can't keep JPG subsampling the same", "red"))
                 img.img.save(out_file, ext,
@@ -359,7 +379,7 @@ def img_save(
                 img.img.save(out_file, ext,
                              quality=100,
                              lossless=True,
-                             method=4)
+                             method=6)
             else:
                 img.img.save(out_file, ext,
                              quality=quality,
