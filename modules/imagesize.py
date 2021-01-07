@@ -14,18 +14,6 @@ NONIMAGES_DIR_NAME = './mv'
 OLDIMAGES_DIR_NAME = 'old'
 PERCENTAGE = ''
 
-if shutil.which('zopflipng'):
-    from multiprocessing import cpu_count
-    from multiprocessing import Pool
-    pool_dict = {}
-    ZOPFLI = True
-else:
-    ZOPFLI = False
-def call_zopflipng(cmd):
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    out, err = p.communicate()
-    return (out, err)
-
 
 def argument_parser(*args):
     global PERCENTAGE
@@ -93,26 +81,16 @@ def argument_parser(*args):
     parser.add_argument(
         '-mvo', dest='out_orig_dir',
         help="mv original images to folder")
-    global ZOPFLI
-    if ZOPFLI:
-        parser.add_argument(
-            '-nozopfli', action='store_true',
-            help="don't use zopflipng")
-    args = parser.parse_args(*args)
 
-    if ZOPFLI:
-        ZOPFLI = not args.nozopfli
-        pool = Pool(processes=cpu_count()) if ZOPFLI else None
-    else:
-        pool = None
+    args = parser.parse_args(*args)
 
     PERCENTAGE = int(args.percentage)
 
-    return args, pool
+    return args
 
 
 def main(*args):
-    args, pool = argument_parser(*args)
+    args = argument_parser(*args)
 
     if args.path:
         print('by argument')
@@ -137,13 +115,13 @@ def main(*args):
     if args.mv:
         nonimages_mv(input_dir_nonimages, nonimages_dir)
 
-    images_process(input_dir_images, input_dir, args, pool)
+    images_process(input_dir_images, input_dir, args)
 
     if not os.listdir(nonimages_dir):
         Path.rmdir(nonimages_dir)
 
 
-def images_process(input_images, input_dir, args, pool):
+def images_process(input_images, input_dir, args):
     if args.out_orig_dir:
         i: Path
         Path.mkdir(input_dir / args.out_orig_dir, exist_ok=True)
@@ -153,33 +131,11 @@ def images_process(input_images, input_dir, args, pool):
     output_dir = input_dir / Path(args.out_dir)
     Path.mkdir(output_dir, exist_ok=True)
 
-    if ZOPFLI:
-        global pool_dict
-        for f in input_images:
-            if args.out_orig_dir:
-                f = f.rename(output_orig_dir / f.name)
-            # process image and get info about file in zopfli pool
-            res = image_process(f, input_dir, output_dir, args, pool=pool)
-            print()
-            if res:
-                pool_dict.update(res)
-        pool.close()
-        if pool_dict:  # if any files in zopfli pool
-            print('Waiting zopflipng to complete:')
-            print(*sorted(pool_dict.keys()), sep='\n')
-            print('Waiting:')
-        pool.join()
-        print('Done')
-        for item in pool_dict.values():
-            out, _ = item.get()
-            print("out:\n" + out.decode())  # get zopfli output
-
-    else:
-        for f in input_images:
-            if args.out_orig_dir:
-                f = f.rename(output_orig_dir / f.name)
-            image_process(f, input_dir, output_dir, args)
-            print()
+    for f in input_images:
+        if args.out_orig_dir:
+            f = f.rename(output_orig_dir / f.name)
+        image_process(f, input_dir, output_dir, args)
+        print()
 
 
 class Img:
@@ -191,7 +147,7 @@ class Img:
         self.mtime = os.path.getmtime(f)
 
 
-def image_process(f, input_dir, output_dir, args, *, pool=None):
+def image_process(f, input_dir, output_dir, args):
     processed = False
     try:
         img = Img(f)
@@ -268,17 +224,7 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
         return
 
     if f.name.endswith('.png'):
-        if (
-                args.kpng
-                and not processed
-                and ZOPFLI
-        ):
-            # zopflipng lossless png size reduction
-            cmd = ['zopflipng', '-y', f.resolve(), output_dir / f.name]
-            pool_dict[f.name] = pool.apply_async(call_zopflipng, (cmd,))
-            print('To zopflipng queue')
-
-        elif args.kpng:
+        if args.kpng:
             img_save(img, output_dir, 'png',
                      quality=args.convert_quality,
                      origcopy=not args.orignocopy)
@@ -314,9 +260,6 @@ def image_process(f, input_dir, output_dir, args, *, pool=None):
         print(colored(str(img.img.format).lower(), 'blue'))
         print(colored("Copying to out dir", 'blue'))
         shutil.copy2(f, output_dir)
-
-    if ZOPFLI:
-        return pool_dict
 
 
 def calc_minsize_target(img_size, target_minsize):
