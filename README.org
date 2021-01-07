@@ -4,16 +4,39 @@ ImageScripts - scripts and wrapper for sorting and manipulating images & videos 
 
 ** Features
 
-- Size reduction (imagesize module)
-- Gallery organisation (find module)
+*** Size reduction (imagesize module)
+Try to optimise images sizes by resizing (default: 3508px, use -resize SIZE), converting to webp (or jpg with -nowebp), setting image quality (default: 93, use -c:q QUALITY), converting black&white jpg to webp/png (disable with -bnwjpg)
 
+To check the list of available options and their usage
+#+begin_src sh
+imagescripts.py size -h
+#+end_src
+
+**** usage
+To optimize all images in current directory
+#+begin_src sh
+imagescripts.py size ./
+#+end_src
+Optimize without resize
+#+begin_src sh
+imagescripts.py size ./ -resize 0
+#+end_src
+Save only optimized images < 70% of original, keep png files
+#+begin_src sh
+imagescripts.py size ./ -percent 70 -kpng
+#+end_src
+Try to convert all images > 200KiB to lossless webp, applying blur and shaprening, move original images to ./originals directory, output optimized images to ./optimized
+#+begin_src sh
+imagescripts.py size -c:f webp -lossless -blur 1 -sharpen 1.2 -msize 200K -mvo originals -o optimized
+#+end_src
+*** Gallery organisation (find module)
   | Function                                  | Submodule             |
   |-------------------------------------------+-----------------------|
   | Find Resizable images with png separation | find\under{}resizable |
   | Find Images with same dimensions          | find\under{}samesize  |
   | Find Simmilar(by average hash)            | find\under{}simmilar  |
-- Image to video converters (generate module)
 
+*** Image to video converters (generate module)
   | Function                                       | Submodule                         |
   |------------------------------------------------+-----------------------------------|
   | Generate video from images in folder(s)        | generate\under{}video             |
