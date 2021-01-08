@@ -175,7 +175,10 @@ def image_process(f, input_dir, output_dir, args):
         if args.orignocopy:
             return
         print(colored("Size too low\nCopying to out dir", 'blue'))
-        shutil.copy2(f, output_dir)
+        try:
+            shutil.copy2(f, output_dir)
+        except shutil.SameFileError:
+            pass
         return
 
     # optional images bluring for smoothing jpg artifacts
@@ -243,9 +246,10 @@ def image_process(f, input_dir, output_dir, args):
                 and image_iscolorfull(img.img) in ('grayscale', 'blackandwhite')
         ):
             if args.nowebp:
-                print('Black and white image, convert jpg to png')
-                img_save(img, output_dir, 'png',
-                         quality=100,
+                print('Black and white image, convert jpg to grayscale')
+                img.img = img.img.convert('L')
+                img_save(img, output_dir, 'jpg',
+                         quality=args.convert_quality,
                          origcopy=not args.orignocopy)
             else:
                 print('Black and white image, convert jpg to webp')
@@ -259,8 +263,10 @@ def image_process(f, input_dir, output_dir, args):
     else:
         print(colored(str(img.img.format).lower(), 'blue'))
         print(colored("Copying to out dir", 'blue'))
-        shutil.copy2(f, output_dir)
-
+        try:
+            shutil.copy2(f, output_dir)
+        except shutil.SameFileError:
+            pass
 
 def calc_minsize_target(img_size, target_minsize):
     new_maxsize = target_minsize * max(img_size) / min(img_size)
@@ -306,7 +312,7 @@ def img_save(
                              optimize=True,
                              progressive=True)
             except ValueError:
-                print(colored("Can't keep JPG subsampling the same", "red"))
+                print("Can't keep JPG subsampling the same")
                 img.img.save(out_file, ext,
                              quality=quality,
                              optimize=True,
@@ -392,7 +398,11 @@ def img_save(
             os.utime(out_file_path, (img.atime, img.mtime))
     elif origcopy:
         print("Copying original")
-        shutil.copy2(img.name, output_path)
+        try:
+            shutil.copy2(img.name, output_path)
+        except shutil.SameFileError:
+            pass
+
     else:
         print("Image not saved")
 

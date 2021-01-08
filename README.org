@@ -13,7 +13,7 @@ imagescripts.py size -h
 #+end_src
 
 **** usage
-To optimize all images in current directory
+To optimize all images in current directory with default settings, output to ./test
 #+begin_src sh
 imagescripts.py size ./
 #+end_src
