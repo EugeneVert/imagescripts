@@ -294,8 +294,8 @@ def img_save(
 ):
     global PERCENTAGE
     out_file_path = output_path / (img.name.stem + '.' + ext)
-    out_file = BytesIO()        # processed image buffer
-    i_ext = img.name.suffix[1:] # input image extension
+    out_file = BytesIO()         # processed image buffer
+    i_ext = img.name.suffix[1:]  # input image extension
     # png  -> png, jpg, webp
     # jpg  -> png, jpg, webp
     # webp -> png, jpg, webp
@@ -383,11 +383,15 @@ def img_save(
     # compare i/o sizes
     out_file_size = out_file.tell()
     orig_file_size = os.path.getsize(img.name)
-    percentage_of_original = "{:.2f}".format(100 * out_file_size / orig_file_size)
-    print(f"Input size : {orig_file_size}")
-    print(f"Result size: {out_file_size}\n" +
-          "Percentage of original: " +
-          percentage_of_original + "%")
+    percentage_of_original = "{:.2f}".format(
+        100 * out_file_size / orig_file_size)
+
+    # print i/o size in human-readable format
+    print("\033[4m" +  # underlined start
+          f"{bite2size(orig_file_size)} --> {bite2size(out_file_size)}    " +
+          f"{percentage_of_original}%" +
+          "\033[0m")  # underlined end
+
     if (
             compare and (float(percentage_of_original) < PERCENTAGE)
             or not compare
@@ -450,12 +454,12 @@ def size2bytes(size):
     factor = 1024 ** idx
     return num * factor
 
-# def bite2size(num, suffix='B'):
-#     for unit in ['','K','M','G']:
-#         if abs(num) < 1024.0:
-#             return "%3.1f%s%s" % (num, unit, suffix)
-#         num /= 1024.0
-#     return "%.1f%s%s" % (num, 'Yi', suffix)
+def bite2size(num, suffix='iB'):
+    for unit in ['', 'K', 'M', 'G']:
+        if abs(num) < 1024.0:
+            return "%3.1f%s%s" % (num, unit, suffix)
+        num /= 1024.0
+    return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
 def nonimages_mv(i, output_dir):
