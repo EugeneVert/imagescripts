@@ -387,10 +387,9 @@ def img_save(
         100 * out_file_size / orig_file_size)
 
     # print i/o size in human-readable format
-    print("\033[4m" +  # underlined start
+    print(colored(
           f"{bite2size(orig_file_size)} --> {bite2size(out_file_size)}    " +
-          f"{percentage_of_original}%" +
-          "\033[0m")  # underlined end
+          f"{percentage_of_original}%", attrs=['underline']))
 
     if (
             compare and (float(percentage_of_original) < PERCENTAGE)

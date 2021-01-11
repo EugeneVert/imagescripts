@@ -17,6 +17,8 @@ def main(*args):
                         help='Dir with zips')
     parser.add_argument('-crf', dest='crf', type=int, default=12,
                         help='Specify video CRF')
+    parser.add_argument('-c:f', dest='format', default='mp4',
+                        help='Specify video format for ffmpeg')
     args = parser.parse_args(*args)
     if args.path:
         print('by argument')
@@ -71,11 +73,14 @@ def main(*args):
                 demuxerf.close()
                 print(Path.name)
                 out_name = str(Path('.')) + '/' + f.stem
+                ffmpegarg = {'crf': args.crf}  # TODO Additional commands
+                if args.format == 'mp4':
+                    ffmpegarg['preset'] = 'veryslow'
             (
                 ffmpeg
                 .input(demuxerf.name,f='concat', safe=0)
                 .filter('pad', 'ceil(iw/2)*2', 'ceil(ih/2)*2')
-                .output(out_name + '.mp4', crf=args.crf, preset='veryslow')
+                .output(out_name + '.' + args.format, **ffmpegarg)
                 .run()
             )
 
