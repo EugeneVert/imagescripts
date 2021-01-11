@@ -1,10 +1,20 @@
 #+TITLE: ImageScripts
+#+OPTIONS: toc
+
 
 ImageScripts - scripts and wrapper for sorting and manipulating images & videos for python.
+* Table of Contents :TOC_3:QUOTE:
+#+BEGIN_QUOTE
+- [[#features][Features]]
+  - [[#size-reduction-imagesize-module][Size reduction (imagesize module)]]
+  - [[#gallery-organisation-find-module][Gallery organisation (find module)]]
+  - [[#image-to-video-converters-generate-module][Image to video converters (generate module)]]
+    - [[#generate-video][Generate video]]
+    - [[#imagesin-zip-file--json-to-video][Images(in .zip file) + json to video]]
+#+END_QUOTE
 
-** Features
-
-*** Size reduction (imagesize module)
+* Features
+** Size reduction (imagesize module)
 Try to optimise images sizes by resizing (default: 3508px, use -resize SIZE), converting to webp (or jpg with -nowebp), setting image quality (default: 93, use -c:q QUALITY), converting black&white jpg to webp/png (disable with -bnwjpg)
 
 To check the list of available options and their usage
@@ -29,15 +39,34 @@ Try to convert all images > 200KiB to lossless webp, applying blur and shaprenin
 #+begin_src sh
 imagescripts.py size -c:f webp -lossless -blur 1 -sharpen 1.2 -msize 200K -mvo originals -o optimized
 #+end_src
-*** Gallery organisation (find module)
+** Gallery organisation (find module)
   | Function                                  | Submodule             |
   |-------------------------------------------+-----------------------|
   | Find Resizable images with png separation | find\under{}resizable |
   | Find Images with same dimensions          | find\under{}samesize  |
   | Find Simmilar(by average hash)            | find\under{}simmilar  |
 
-*** Image to video converters (generate module)
-  | Function                                       | Submodule                         |
-  |------------------------------------------------+-----------------------------------|
-  | Generate video from images in folder(s)        | generate\under{}video             |
-  | Generate video from json(s) and zip archive(s) | json\under{}generate\under{}video |
+** Image to video converters (generate module)
+*** Generate video
+Generate a video from a set of images. The Size of the video based on the average images size.
+
+Creates a script for imagemagick to convert the video back to the images.
+
+The resized images to a smaller size, the original image names, a rename script will be stored in .zip file.
+
+**** usage
+jpg images as input
+#+begin_src sh
+imagescripts.py generate video *.jpg
+#+end_src
+folder with jpg images as input. video fps=4(default 2) crf=18
+#+begin_src sh
+imagescripts.py generate video ./folder -e jpg -r 4 -crf 18
+#+end_src
+
+*** Images(in .zip file) + json to video
+Generate video from zips(w\ frames) + json(file, duration)
+**** usage
+    #+begin_src sh
+imagescripts.py generate fromjson ./
+#+end_src

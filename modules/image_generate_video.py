@@ -18,9 +18,11 @@ import zipfile
 
 
 def main(*args):
-    parser = argparse.ArgumentParser(description=\
-"Generate video from set of images based on maximum images sizes of that set.\n" +
-"Then generates script for imagemagick for convert video back to images.",
+    parser = argparse.ArgumentParser(description="\
+Generate a video from a set of images. The Size of the video based on the average images size. \n\n\
+\
+Creates a script for imagemagick to convert the video back to the images.\n\
+The resized images to a smaller size, the original image names, a rename script will be stored in .zip file.",
                                      formatter_class=RawTextHelpFormatter)
     parser.add_argument('path', nargs='+', help='Path of a file or a folder of files.')
     parser.add_argument('-e', '--extension', default='', help='File extension to filter by.')
