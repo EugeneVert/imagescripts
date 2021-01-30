@@ -83,7 +83,7 @@ def image2video(in_files, args, dimensions=None):  # TODO Specify name of out.mp
         .input((img_dir + '/*' + img_ext).replace('[','\[').replace(']','\]'), pattern_type='glob', framerate=fps)
         .filter('scale', WH[0], WH[1], force_original_aspect_ratio='decrease')
         .filter('pad', WH[0], WH[1], '(ow-iw)/2', '(oh-ih)/2', background)  # TODO background color calculation
-        .output(name+'.mp4', crf=crf, preset='veryslow', tune='animation')
+        .output(name+'.mp4', crf=crf, preset='veryslow', tune='animation', deblock='-3:-3')
         .run()
     )
     gen_extract_file(WH, img_size_dict, name, args)
@@ -150,7 +150,7 @@ done
     inv_resize_dict = {}
 
     if resize_dict:
-        f = open('_transform.sh', 'w')
+        f = open(out_dname + '/_transform.sh', 'w')
         f.write('\n')
         f.write('if [ -d "./' + name + '" ]; then ')
         f.write('cd "./' + name + '" || exit ; ')
@@ -170,6 +170,8 @@ done
         f.write('cd .. ; ')
         f.write('fi')
         f.close()
+    path = os.path.dirname(os.path.abspath(args.path[0]))
+    make_archive(path, out_dname)
 
 
 def list_to_str(src: list):
@@ -212,7 +214,6 @@ def after_gen(path, out_dname):
         img_name, ext = os.path.splitext(f)
         img.save(img_name + ".webp", format="webp", quality=92, method=6)
         print('done for image', f)
-    make_archive(path, out_dname)
 
 
 def make_archive(path, path_d):
