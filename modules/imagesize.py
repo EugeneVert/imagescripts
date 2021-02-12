@@ -2,18 +2,21 @@
 
 # 2020 Eugene Vert; eugene.a.vert@gmail.com
 
-import os, argparse, shutil, re, subprocess
+import os, argparse, shutil, re
+import subprocess
 from pathlib import Path
 from io import BytesIO
 from PIL import Image, ImageStat
 from PIL.ImageFilter import GaussianBlur, UnsharpMask
 from termcolor import colored
+import tempfile
 
 
 NONIMAGES_DIR_NAME = './mv'
 OLDIMAGES_DIR_NAME = 'old'
 PERCENTAGE = ''
 
+HAVE_JXL = shutil.which('cjxl')
 
 def argument_parser(*args):
     global PERCENTAGE
@@ -197,10 +200,10 @@ def image_process(f, input_dir, output_dir, args):
     # resize images (has option to ask for each) if they are bigger than args.size
     # args.size == 0 disables resizing
     if args.size != '0':
-        if args.size[-1] == 'x': # set resize size by smallest side
+        if args.size[-1] == 'x':  # set resize size by smallest side
             size_target_min = int(args.size[:-1])
             if int(min(img.size)) > size_target_min:
-               
+
                 if (not args.ask) or input(colored('resize? y/n ', 'yellow')).lower() == 'y':
                     size_target = calc_minsize_target(img.img.size, size_target_min)
                     print(colored('making image smaller', 'yellow'))
@@ -268,6 +271,7 @@ def image_process(f, input_dir, output_dir, args):
         except shutil.SameFileError:
             pass
 
+
 def calc_minsize_target(img_size, target_minsize):
     new_maxsize = target_minsize * max(img_size) / min(img_size)
     new_maxsize = round(new_maxsize)
@@ -277,15 +281,15 @@ def calc_minsize_target(img_size, target_minsize):
 
 
 def img_save_webp_or_jpg(img, output_dir, args):
+    additional_args = {"quality": args.convert_quality,
+                       "lossless": args.lossless,
+                       "origcopy": not args.orignocopy}
     if args.nowebp:
-        img_save(img, output_dir, 'jpg',
-                 quality=args.convert_quality,
-                 origcopy=not args.orignocopy)
+        img_save(img, output_dir, 'jpg', **additional_args)
+    elif HAVE_JXL:
+        img_save(img, output_dir, 'jxl', **additional_args)
     else:
-        img_save(img, output_dir, 'webp',
-                 quality=args.convert_quality,
-                 lossless=args.lossless,
-                 origcopy=not args.orignocopy)
+        img_save(img, output_dir, 'webp', **additional_args)
 
 
 def img_save(
@@ -317,6 +321,8 @@ def img_save(
                              quality=quality,
                              optimize=True,
                              progressive=True)
+        elif ext == 'jxl':
+            out_file = save_jxl(img, quality=quality, lossless=lossless)
         elif ext == 'png':
             # reduce color palette
             # img.img = img.img.convert(mode='P', palette=Image.ADAPTIVE)
@@ -347,6 +353,8 @@ def img_save(
                          subsampling=2,
                          optimize=True,
                          progressive=True)
+        elif ext == 'jxl':
+            out_file = save_jxl(img, quality=quality, lossless=lossless)
         elif ext == 'webp':
             if lossless:
                 img.img.save(out_file, ext,
@@ -376,6 +384,8 @@ def img_save(
                          subsampling=2,
                          optimize=True,
                          progressive=True)
+        elif ext == 'jxl':
+            out_file = save_jxl(img, quality=quality, lossless=lossless)
         elif ext == 'png':
             img.img.save(out_file, ext,
                          optimize=True)
@@ -408,6 +418,23 @@ def img_save(
 
     else:
         print("Image not saved")
+
+
+def save_jxl(img: Image, quality=92, lossless=False):
+    with tempfile.NamedTemporaryFile() as temp:
+        bufer = tempfile.NamedTemporaryFile()
+        img.img.save(temp, "png")
+        cmd = "cjxl " + temp.name + f" -q {quality}"
+        if lossless:
+            cmd += " -m"
+        cmd += " " + bufer.name
+        print(cmd)
+        proc = subprocess.Popen(cmd, shell=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        print((proc.communicate()[1]).decode("utf-8"))
+        out = BytesIO(bufer.read())
+        out.read()
+        return out
 
 
 # https://stackoverflow.com/questions/20068945/detect-if-image-is-color-grayscale-or-black-and-white-with-python-pil
