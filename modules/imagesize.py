@@ -32,14 +32,14 @@ def argument_parser(*args):
         help="output dir \n    (default: %(default)s)")
     parser.add_argument(
         '-c:f', dest='convert_format', type=str,
-        help="set output format for All files")
+        help="set output format for all files")
     parser.add_argument(
         '-c:q', dest='convert_quality', type=int,
         default=int(93),
-        help='compression level \n    (default: %(default)s)')
+        help='quality setting \n    (default: %(default)s)')
     parser.add_argument(
         '-lossless', action='store_true',
-        help="lossless png to webp")
+        help="keep png lossless")
     parser.add_argument(
         '-ask', action='store_true',
         help='ask resize for each resizable')
@@ -59,15 +59,12 @@ def argument_parser(*args):
         help='add sharpen filter to image\n' +
         '_____________________________________________\n\n')
     parser.add_argument(
-        '-bnwjpg', action='store_true',
-        help="don't convert Black&White jpg's to png")
-    parser.add_argument(
         '-msize', dest='fsize_min',
         default="150K",
         help="min filesize to process. (B | K | M) (K=2^10)")
     parser.add_argument(
         '-percent', dest='percentage',
-        default=100,
+        default=90,
         help="Max percentage of original file to save")
     parser.add_argument(
         '-mv', action='store_true',
@@ -229,39 +226,22 @@ def image_process(f, input_dir, output_dir, args):
                  compare=False)
         return
 
+    additional_args = {"quality": args.convert_quality,
+                       "lossless": args.lossless,
+                       "origcopy": not args.orignocopy}
     if f.name.endswith('.png'):
         if args.kpng:
-            img_save(img, output_dir, 'png',
-                     quality=args.convert_quality,
-                     origcopy=not args.orignocopy)
+            ext = 'png'
+            img_save(img, output_dir, ext, **additional_args)
         elif image_has_transparency(img.img):
             print(colored('Image has transparency', 'yellow'))
-            img_save(img, output_dir, 'webp',
-                     lossless=args.lossless,
-                     quality=args.convert_quality,
-                     origcopy=not args.orignocopy)
+            ext = 'jxl' if HAVE_JXL else 'webp'
+            img_save(img, output_dir, ext, **additional_args)
         else:
             img_save_webp_or_jpg(img, output_dir, args)
 
-    elif f.name.endswith('.jpg'):
-        if (
-                not args.bnwjpg
-                and image_iscolorfull(img.img) in ('grayscale', 'blackandwhite')
-        ):
-            if args.nowebp:
-                print('Black and white image, convert jpg to grayscale')
-                img.img = img.img.convert('L')
-                img_save(img, output_dir, 'jpg',
-                         quality=args.convert_quality,
-                         origcopy=not args.orignocopy)
-            else:
-                print('Black and white image, convert jpg to webp')
-                img_save(img, output_dir, 'webp',
-                         quality=args.convert_quality,
-                         lossless=args.lossless,
-                         origcopy=not args.orignocopy)
-        else:
-            img_save_webp_or_jpg(img, output_dir, args)
+    elif f.name.endswith('.jpg') or f.name.endswith('.webp'):
+        img_save_webp_or_jpg(img, output_dir, args)
 
     else:
         print(colored(str(img.img.format).lower(), 'blue'))
@@ -285,11 +265,12 @@ def img_save_webp_or_jpg(img, output_dir, args):
                        "lossless": args.lossless,
                        "origcopy": not args.orignocopy}
     if args.nowebp:
-        img_save(img, output_dir, 'jpg', **additional_args)
+        ext = 'jpg'
     elif HAVE_JXL:
-        img_save(img, output_dir, 'jxl', **additional_args)
+        ext = 'jxl'
     else:
-        img_save(img, output_dir, 'webp', **additional_args)
+        ext = 'webp'
+    img_save(img, output_dir, ext, **additional_args)
 
 
 def img_save(
@@ -370,7 +351,7 @@ def img_save(
     elif i_ext == 'webp':
         if ext == 'webp':
             if lossless:
-                img.img.save(out_file,ext,
+                img.img.save(out_file, ext,
                              quality=100,
                              lossless=True,
                              method=6)
@@ -438,31 +419,31 @@ def save_jxl(img: Image, quality=92, lossless=False):
 
 
 # https://stackoverflow.com/questions/20068945/detect-if-image-is-color-grayscale-or-black-and-white-with-python-pil
-def image_iscolorfull(image, thumb_size=40, MSE_cutoff=22, adjust_color_bias=True):
-    pil_img = image
-    bands = pil_img.getbands()
-    if bands == ('R', 'G', 'B') or bands == ('R', 'G', 'B', 'A'):
-        thumb = pil_img.resize((thumb_size, thumb_size))
-        SSE, bias = 0, [0,0,0]
-        if adjust_color_bias:
-            bias = ImageStat.Stat(thumb).mean[:3]
-            bias = [b - sum(bias)/3 for b in bias]
-        for pixel in thumb.getdata():
-            mu = sum(pixel)/3
-            SSE += sum((pixel[i] - mu - bias[i])*(pixel[i] - mu - bias[i]) for i in [0, 1, 2])
-        MSE = float(SSE)/(thumb_size*thumb_size)
-        if MSE <= MSE_cutoff:
-            print("Grayscale")
-            return "grayscale"
-        else:
-            return "color"
-        print("( MSE=", MSE, ")")
-    elif len(bands) == 1:
-        print("Black and white", bands)
-        return "blackandwhite"
-    else:
-        print("Don't know...", bands)
-        return "unknown"
+# def image_iscolorfull(image, thumb_size=40, MSE_cutoff=22, adjust_color_bias=True):
+#     pil_img = image
+#     bands = pil_img.getbands()
+#     if bands == ('R', 'G', 'B') or bands == ('R', 'G', 'B', 'A'):
+#         thumb = pil_img.resize((thumb_size, thumb_size))
+#         SSE, bias = 0, [0,0,0]
+#         if adjust_color_bias:
+#             bias = ImageStat.Stat(thumb).mean[:3]
+#             bias = [b - sum(bias)/3 for b in bias]
+#         for pixel in thumb.getdata():
+#             mu = sum(pixel)/3
+#             SSE += sum((pixel[i] - mu - bias[i])*(pixel[i] - mu - bias[i]) for i in [0, 1, 2])
+#         MSE = float(SSE)/(thumb_size*thumb_size)
+#         if MSE <= MSE_cutoff:
+#             print("Grayscale")
+#             return "grayscale"
+#         else:
+#             return "color"
+#         print("( MSE=", MSE, ")")
+#     elif len(bands) == 1:
+#         print("Black and white", bands)
+#         return "blackandwhite"
+#     else:
+#         print("Don't know...", bands)
+#         return "unknown"
 
 
 def image_has_transparency(image: Image.Image):
