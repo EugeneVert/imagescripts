@@ -134,14 +134,14 @@ do
     then continue; fi
     dirname="${{i%.*}}"
     mkdir "$dirname"
-    ffmpeg -i "$i" -r {0} -c:v libwebp -qscale 95 -qmin 1 -qmax 1 ./"$dirname"/img%03d.webp
+    ffmpeg -i "$i" -vsync 2 ./"$dirname"/img%03d.png
 done
 """.format(fps))
     f.close()
 
     print('rename.sh')
     f = open(out_dname + '/_rename.sh', 'w')
-    f.write("""ls ./*.webp | paste -d' ' - "./_names.txt" | xargs -n2 mv""")
+    f.write("""ls ./img* | paste -d' ' - "./_names.txt" | while read a b; do mv "$a" "${b%.*}.${a##*.}"; done""")
     f.close()
 
     if not args.noarchive:
@@ -165,7 +165,7 @@ done
                     ' -quality 95' +
                     # TODO Lossles images -> resize -> lossy
                     ' -extent ' + str(i[0][0])+'x'+str(i[0][1])+'! ' +
-                    " ".join(map(lambda x: '"' + ("img{:03d}.webp").format(img_list.index(x) + 1) + '"', i[1])) + ' ; '
+                    " ".join(map(lambda x: '"' + ("img{:03d}.jpg").format(img_list.index(x) + 1) + '"', i[1])) + ' ; '
                     )
         f.write('cd .. ; ')
         f.write('fi')
@@ -188,7 +188,7 @@ def gen_resize_dict(WH: tuple, img_size_dict: dict, img_list: list, out_dname):
     path = os.path.dirname(img_size_list[0][0])
     for i in img_size_list:
         name = os.path.basename(i[0])
-        outname = ("img{:03d}.webp").format(img_list.index(name) + 1)
+        outname = ("img{:03d}.jpg").format(img_list.index(name) + 1)
         ratio_w = WH[0]/i[1][0]
         ratio_h = WH[1]/i[1][1]
         if ratio_h == 1 and ratio_w == 1:
@@ -201,18 +201,18 @@ def gen_resize_dict(WH: tuple, img_size_dict: dict, img_list: list, out_dname):
         if ratio_best > 1.15 or ratio_best < 0.95:
             shutil.copy2(i[0], path + '/' + out_dname + '/' + outname)
         resize_dict[name] = i_new_WH
-    print('Converting _d to webp')
+    print('Converting _d to jpg')
     after_gen(path, out_dname)
     return resize_dict
 
 
 def after_gen(path, out_dname):
-    files = glob.glob(out_dname + '/*.webp')
+    files = glob.glob(out_dname + '/*.jpg')
     print(files)
     for f in files:
         img = Image.open(f)
         img_name, ext = os.path.splitext(f)
-        img.save(img_name + ".webp", format="webp", quality=92, method=6)
+        img.save(img_name + ".jpg", format="jpeg", quality=94)
         print('done for image', f)
 
 
