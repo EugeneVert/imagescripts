@@ -8,6 +8,7 @@ from pathlib import Path
 from io import BytesIO
 from PIL import Image, ImageStat
 from PIL.ImageFilter import GaussianBlur, UnsharpMask
+from multiprocessing import Pool
 from termcolor import colored
 import tempfile
 
@@ -35,7 +36,7 @@ def argument_parser(*args):
         help="set output format for all files")
     parser.add_argument(
         '-c:q', dest='convert_quality', type=int,
-        default=int(93),
+        default=int(92),
         help='quality setting \n    (default: %(default)s)')
     parser.add_argument(
         '-lossless', action='store_true',
@@ -121,6 +122,34 @@ def main(*args):
         Path.rmdir(nonimages_dir)
 
 
+def collect_result(result):
+    if result:
+        print(result[0])
+        if result[1]:
+            print(result[1])
+
+
+def std_wrapper(args):
+    from io import StringIO
+    import sys
+    sys.stdout, sys.stderr = StringIO(), StringIO()  # replace stdout/err with our buffers
+    # args is a list packed as: [0] process function name; [1] args; [2] kwargs; lets unpack:
+    process_name = args[0]
+    process_args = args[1] if len(args) > 1 else []
+    process_kwargs = args[2] if len(args) > 2 else {}
+    # get our method from its name, assuming global namespace of the current module/script
+    process = globals()[process_name]
+    try:
+        response = process(*process_args, **process_kwargs)  # call our process function
+    except Exception as e:  # too broad but good enough as an example
+        print(e)
+    # rewind our buffers:
+    sys.stdout.seek(0)
+    sys.stderr.seek(0)
+    # return everything packed as STDOUT, STDERR, PROCESS_RESPONSE | NONE
+    return sys.stdout.read(), sys.stderr.read()
+
+
 def images_process(input_images, input_dir, args):
     if args.out_orig_dir:
         i: Path
@@ -131,11 +160,16 @@ def images_process(input_images, input_dir, args):
     output_dir = input_dir / Path(args.out_dir)
     Path.mkdir(output_dir, exist_ok=True)
 
+    pool = Pool()
+
     for f in input_images:
         if args.out_orig_dir:
             f = f.rename(output_orig_dir / f.name)
-        image_process(f, input_dir, output_dir, args)
-        print()
+        pool.apply_async(
+            std_wrapper, [('image_process', (f, input_dir, output_dir, args))],
+            callback=collect_result)
+    pool.close()
+    pool.join()
 
 
 class Img:
@@ -240,7 +274,7 @@ def image_process(f, input_dir, output_dir, args):
         else:
             img_save_webp_or_jpg(img, output_dir, args)
 
-    elif f.name.endswith('.jpg') or f.name.endswith('.webp'):
+    elif f.name.endswith('.jpg'):
         img_save_webp_or_jpg(img, output_dir, args)
 
     else:
@@ -402,19 +436,23 @@ def img_save(
 
 
 def save_jxl(img: Image, quality=92, lossless=False):
-    with tempfile.NamedTemporaryFile() as temp:
-        bufer = tempfile.NamedTemporaryFile()
+    with tempfile.NamedTemporaryFile(prefix="png_") as temp:
+        bufer = tempfile.NamedTemporaryFile(prefix="jxl_")
         img.img.save(temp, "png")
-        cmd = "cjxl " + temp.name + f" -q {quality}"
+        cmd = "cjxl " + temp.name
         if lossless:
-            cmd += " -m"
+            cmd += " -m -s 8"
+        else:
+            cmd += f" -q {quality}"
         cmd += " " + bufer.name
         print(cmd)
         proc = subprocess.Popen(cmd, shell=True,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        print((proc.communicate()[1]).decode("utf-8"))
+        # print((proc.communicate()[1]).decode("utf-8"))
+        proc.communicate()
         out = BytesIO(bufer.read())
         out.read()
+        bufer.close()
         return out
 
 
