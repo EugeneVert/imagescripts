@@ -14,7 +14,7 @@ from PIL import Image
 # video creation
 import ffmpeg
 # orig of resized images arhiving
-import zipfile
+# import zipfile
 
 
 def main(*args):
@@ -24,13 +24,22 @@ Generate a video from a set of images. The Size of the video based on the averag
 Creates a script for imagemagick to convert the video back to the images.\n\
 The resized images to a smaller size, the original image names, a rename script will be stored in .zip file.",
                                      formatter_class=RawTextHelpFormatter)
-    parser.add_argument('path', nargs='+', help='Path of a file or a folder of files.')
-    parser.add_argument('-e', '--extension', default='', help='File extension to filter by.')
-    parser.add_argument('-d', '--dimensions', help='Specify video dimensions')
-    parser.add_argument('-b', '--background', default='Black', help='Specify video background')
-    parser.add_argument('--noarchive', action='store_true', help="Don't create archive with non-resized original images")
-    parser.add_argument('-crf', dest='crf', type=int, default=12, help='Specify video CRF')
-    parser.add_argument('-r', '--fps', dest='fps', type=int, default=2, help='Specify video framerate')  # NOTE fps default value check on gen_extract_file in image2video
+    parser.add_argument('path', nargs='+',
+                        help='Path of a file or a folder of files.')
+    parser.add_argument('-e', '--extension', default='',
+                        help='File extension to filter by.')
+    parser.add_argument('-d', '--dimensions',
+                        help='Specify video dimensions')
+    parser.add_argument('-b', '--background', default='Black',
+                        help='Specify video background')
+    parser.add_argument('--noarchive', action='store_true',
+                        help="Don't create archive with non-resized original images")
+    parser.add_argument('-crf', dest='crf', type=int, default=12,
+                        help='Specify video CRF')
+    parser.add_argument('-r', '--fps', dest='fps', type=int, default=2,
+                        help='Specify video framerate')  # NOTE fps default value check on gen_extract_file in image2video
+    parser.add_argument('-c:f', dest='format', default='mp4',
+                        help='Specify video format for ffmpeg')
     args = parser.parse_args(*args)
 
     # Parse paths
@@ -65,9 +74,6 @@ The resized images to a smaller size, the original image names, a rename script 
 
 
 def image2video(in_files, args, dimensions=None):  # TODO Specify name of out.mp4
-    background = args.background
-    crf = args.crf
-    fps = args.fps
     img_dir = os.path.dirname(in_files[0])
     fullname = os.path.basename(sorted(in_files)[0])
     # set output filename same as first image
@@ -76,14 +82,32 @@ def image2video(in_files, args, dimensions=None):  # TODO Specify name of out.mp
     WH, img_size_dict = images_size_targ(in_files)
     if dimensions:
         WH = tuple(map(int, dimensions.split('x')))
-    print("CRF", crf)
+    if args.crf:
+        print("CRF", args.crf)
     print('\n\n\n')
+
+    if args.format == 'mp4':
+        ffmpegarg = {"crf": args.crf, "preset": "veryslow",
+                     "tune": "animation", "deblock": "-3:-3"}
+    elif args.format == 'vp9':
+        ffmpegarg = {"crf": args.crf, "pix_fmt": "yuv444p", "c:v": "libvpx-vp9"}
+        args.format = 'webm'
+    elif args.format == 'av1-aom':
+        print("TODO optimize arguments")
+        ffmpegarg = {"crf": args.crf, "c:v": "libaom-av1"}
+        args.format = 'mp4'
+    elif args.format == 'av1-rav1e':
+        ffmpegarg = {"pix_fmt": "yuv444p", "c:v": "librav1e", "qp": 50, "tiles": 4}
+        args.format = 'mp4'
+    elif args.format == 'y4m':
+        ffmpegarg = {"pix_fmt": "yuv444p"}
     (
         ffmpeg
-        .input((img_dir + '/*' + img_ext).replace('[','\[').replace(']','\]'), pattern_type='glob', framerate=fps)
+        .input((img_dir + '/*' + img_ext).replace('[','\[').replace(']','\]'),
+               pattern_type='glob', framerate=args.fps)
         .filter('scale', WH[0], WH[1], force_original_aspect_ratio='decrease')
-        .filter('pad', WH[0], WH[1], '(ow-iw)/2', '(oh-ih)/2', background)  # TODO background color calculation
-        .output(name+'.mp4', crf=crf, preset='veryslow', tune='animation', deblock='-3:-3')
+        .filter('pad', WH[0], WH[1], '(ow-iw)/2', '(oh-ih)/2', args.background)  # TODO background color calculation
+        .output(name + '.' + args.format, **ffmpegarg)
         .run()
     )
     gen_extract_file(WH, img_size_dict, name, args)
