@@ -4,20 +4,62 @@
 
 import os, argparse, shutil, re
 import subprocess
+from multiprocessing import Pool
 from pathlib import Path
 from io import BytesIO
-from PIL import Image, ImageStat
-from PIL.ImageFilter import GaussianBlur, UnsharpMask
-from multiprocessing import Pool
-from termcolor import colored
 import tempfile
 
+from PIL import Image
+# from PIL import ImageStat
+from PIL.ImageFilter import GaussianBlur, UnsharpMask
+from termcolor import colored
 
 NONIMAGES_DIR_NAME = './mv'
 OLDIMAGES_DIR_NAME = 'old'
 PERCENTAGE = ''
 
 HAVE_JXL = shutil.which('cjxl')
+
+ENC_SETTINGS = {
+    "png": {
+        "any": {
+            "optimize": True
+        }
+    },
+    "jpg": {
+        "any": {
+            "quality": "$quality",
+            "subsampling": 2,
+            "optimize": True,
+            "progressive": True
+        },
+        "jpg": {
+            "quality": "$quality",
+            "subsampling": "keep",
+            "optimize": True,
+            "progressive": True
+        }
+    },
+    "jxl": {
+        "any": {
+            "quality": "$quality",
+            "lossless": "$lossless"
+        }
+    },
+    "webp_lossless": {
+        "any": {
+            "quality": 100,
+            "lossless": True,
+            "method": 4
+        }
+    },
+    "webp_lossy": {
+        "any": {
+            "quality": "$quality",
+            "method": 6
+        }
+    }
+}
 
 def argument_parser(*args):
     global PERCENTAGE
@@ -141,12 +183,11 @@ def std_wrapper(args):
     process = globals()[process_name]
     try:
         response = process(*process_args, **process_kwargs)  # call our process function
-    except Exception as e:  # too broad but good enough as an example
+    except Exception as e:
         print(e)
     # rewind our buffers:
     sys.stdout.seek(0)
     sys.stderr.seek(0)
-    # return everything packed as STDOUT, STDERR, PROCESS_RESPONSE | NONE
     return sys.stdout.read(), sys.stderr.read()
 
 
@@ -165,11 +206,12 @@ def images_process(input_images, input_dir, args):
     for f in input_images:
         if args.out_orig_dir:
             f = f.rename(output_orig_dir / f.name)
-        pool.apply_async(
-            std_wrapper, [('image_process', (f, input_dir, output_dir, args))],
-            callback=collect_result)
-    pool.close()
-    pool.join()
+        image_process(f, input_dir, output_dir, args)
+    #     pool.apply_async(
+    #         std_wrapper, [('image_process', (f, input_dir, output_dir, args))],
+    #         callback=collect_result)
+    # pool.close()
+    # pool.join()
 
 
 class Img:
@@ -318,92 +360,64 @@ def img_save(
     # png  -> png, jpg, webp
     # jpg  -> png, jpg, webp
     # webp -> png, jpg, webp
+    #
+    #
+    # get arguments from dict
+    kwargs_raw = 0
+    if ext == "webp":
+        kwargs_raw = (ENC_SETTINGS["webp_lossless"]["any"] if lossless
+                      else ENC_SETTINGS["webp_lossy"]["any"])
+    if not kwargs_raw:
+        kwargs_raw = (ENC_SETTINGS[ext][i_ext]
+                      if i_ext in ENC_SETTINGS[ext]
+                      else ENC_SETTINGS[ext]["any"])
+    # replace placeholders with values
+    kwargs = {key:
+              (val if
+               (val != "$quality" and val != "$lossless")
+               else quality if val != "$lossless"
+               else lossless)
+              for key, val in kwargs_raw.items()}
+
+    # Pillow wants jpeg as extension
     if ext == 'jpg':
         ext = 'jpeg'
 
-    # JPEG
+    # INPUT -- JPEG
     if i_ext == 'jpg':
         if ext == 'jpeg':
             try:
-                img.img.save(out_file, ext,
-                             quality=quality,
-                             subsampling='keep',
-                             optimize=True,
-                             progressive=True)
+                img.img.save(out_file, ext, **kwargs)
             except ValueError:
                 print("Can't keep JPG subsampling the same")
-                img.img.save(out_file, ext,
-                             quality=quality,
-                             optimize=True,
-                             progressive=True)
+                kwargs.pop("subsampling", None)
+                img.img.save(out_file, ext, **kwargs)
         elif ext == 'jxl':
-            out_file = save_jxl(img, quality=quality, lossless=lossless)
+            out_file = save_jxl(img, i_ext, **kwargs)
         elif ext == 'png':
             # reduce color palette
             # img.img = img.img.convert(mode='P', palette=Image.ADAPTIVE)
             ###
-            img.img.save(out_file, ext,
-                         optimize=True)
+            img.img.save(out_file, ext, **kwargs)
         elif ext == 'webp':
-            if lossless:
-                img.img.save(out_file, ext,
-                             quality=100,
-                             lossless=True,
-                             method=6)
-            else:
-                img.img.save(out_file, ext,
-                             quality=quality,
-                             lossless=False,
-                             method=6)
+            img.img.save(out_file, ext, **kwargs)
 
-    # PNG
+    # INPUT -- PNG
     elif i_ext == 'png':
-        if ext == 'png':
-            img.img.save(out_file, ext,
-                         optimize=True)
-        elif ext == 'jpeg':
+        if ext == 'jpeg':
             img.img = img.img.convert('RGB')
-            img.img.save(out_file, ext,
-                         quality=quality,
-                         subsampling=2,
-                         optimize=True,
-                         progressive=True)
+            img.img.save(out_file, ext, **kwargs)
         elif ext == 'jxl':
-            out_file = save_jxl(img, quality=quality, lossless=lossless)
-        elif ext == 'webp':
-            if lossless:
-                img.img.save(out_file, ext,
-                             quality=100,
-                             lossless=True,
-                             method=4)
-            else:
-                img.img.save(out_file, ext,
-                             quality=quality,
-                             method=6)
+            out_file = save_jxl(img, i_ext, **kwargs)
+        else:
+            img.img.save(out_file, ext, **kwargs)
 
-    # WEBP
+    # INPUT -- WEBP
     elif i_ext == 'webp':
-        if ext == 'webp':
-            if lossless:
-                img.img.save(out_file, ext,
-                             quality=100,
-                             lossless=True,
-                             method=6)
-            else:
-                img.img.save(out_file, ext,
-                             quality=quality,
-                             method=6)
-        elif ext == 'jpeg':
-            img.img.save(out_file, ext,
-                         quality=quality,
-                         subsampling=2,
-                         optimize=True,
-                         progressive=True)
-        elif ext == 'jxl':
-            out_file = save_jxl(img, quality=quality, lossless=lossless)
-        elif ext == 'png':
-            img.img.save(out_file, ext,
-                         optimize=True)
+        if ext == 'jxl':
+            out_file = save_jxl(img, i_ext, **kwargs)
+        else:
+            img.img.save(out_file, ext, **kwargs)
 
     # compare i/o sizes
     out_file_size = out_file.tell()
@@ -435,25 +449,40 @@ def img_save(
         print("Image not saved")
 
 
-def save_jxl(img: Image, quality=92, lossless=False):
-    with tempfile.NamedTemporaryFile(prefix="png_") as temp:
-        bufer = tempfile.NamedTemporaryFile(prefix="jxl_")
+def save_jxl(img: Img, input_extension, quality=92, lossless=False):
+    temp = 0
+    bufer = tempfile.NamedTemporaryFile(prefix="jxl_")
+
+    if input_extension == "webp":  # cjxl does't support webp as input
+        # save webp as temp png
+        temp = tempfile.NamedTemporaryFile(prefix="png_")
         img.img.save(temp, "png")
         cmd = "cjxl " + temp.name
-        if lossless:
-            cmd += " -m -s 8"
+
+    else:
+        cmd = 'cjxl "' + img.name.as_posix() + '"'
+
+    if lossless:
+        # Jpg can be transcoded losslessly, no need of modular mode
+        if input_extension == "jpg":
+            print("jpg transcode to jxl")
         else:
-            cmd += f" -q {quality}"
-        cmd += " " + bufer.name
-        print(cmd)
-        proc = subprocess.Popen(cmd, shell=True,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        # print((proc.communicate()[1]).decode("utf-8"))
-        proc.communicate()
-        out = BytesIO(bufer.read())
-        out.read()
-        bufer.close()
-        return out
+            cmd += " -m -s 8"
+    else:
+        cmd += f" -q {quality} -p"
+    cmd += " " + bufer.name
+    print(cmd)
+    proc = subprocess.Popen(cmd, shell=True,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # print((proc.communicate()[1]).decode("utf-8"))
+    proc.communicate()
+    if temp:
+        temp.close()
+
+    out = BytesIO(bufer.read())
+    out.read()
+    bufer.close()
+    return out
 
 
 # https://stackoverflow.com/questions/20068945/detect-if-image-is-color-grayscale-or-black-and-white-with-python-pil
@@ -498,6 +527,7 @@ def size2bytes(size):
     idx = size_name.index(unit)
     factor = 1024 ** idx
     return num * factor
+
 
 def bite2size(num, suffix='iB'):
     for unit in ['', 'K', 'M', 'G']:
