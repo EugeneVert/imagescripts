@@ -206,12 +206,12 @@ def images_process(input_images, input_dir, args):
     for f in input_images:
         if args.out_orig_dir:
             f = f.rename(output_orig_dir / f.name)
-        image_process(f, input_dir, output_dir, args)
-    #     pool.apply_async(
-    #         std_wrapper, [('image_process', (f, input_dir, output_dir, args))],
-    #         callback=collect_result)
-    # pool.close()
-    # pool.join()
+        # image_process(f, input_dir, output_dir, args)
+        pool.apply_async(
+            std_wrapper, [('image_process', (f, input_dir, output_dir, args))],
+            callback=collect_result)
+    pool.close()
+    pool.join()
 
 
 class Img:
@@ -247,7 +247,7 @@ def image_process(f, input_dir, output_dir, args):
 
     # copy non-png files to output dir if they have small filesize
     filesize_min_to_process = size2bytes(args.fsize_min)
-    if os.path.getsize(f) < filesize_min_to_process and not f.name.endswith('png'):
+    if os.path.getsize(f) < filesize_min_to_process:
         if args.orignocopy:
             return
         print(colored("Size too low\nCopying to out dir", 'blue'))
@@ -294,17 +294,18 @@ def image_process(f, input_dir, output_dir, args):
                     img.img.thumbnail(size_target, Image.LANCZOS)
                     processed = True
 
+    additional_args = {"quality": args.convert_quality,
+                       "lossless": args.lossless,
+                       "origcopy": not args.orignocopy,
+                       "processed": processed}
+
     # optional convert to format
     if args.convert_format:
         img_save(img, output_dir, args.convert_format,
-                 quality=args.convert_quality,
-                 lossless=args.lossless,
+                 **additional_args,
                  compare=False)
         return
 
-    additional_args = {"quality": args.convert_quality,
-                       "lossless": args.lossless,
-                       "origcopy": not args.orignocopy}
     if f.name.endswith('.png'):
         if args.kpng:
             ext = 'png'
@@ -314,10 +315,10 @@ def image_process(f, input_dir, output_dir, args):
             ext = 'jxl' if HAVE_JXL else 'webp'
             img_save(img, output_dir, ext, **additional_args)
         else:
-            img_save_webp_or_jpg(img, output_dir, args)
+            img_save_lossy(img, output_dir, args.nowebp, additional_args)
 
     elif f.name.endswith('.jpg'):
-        img_save_webp_or_jpg(img, output_dir, args)
+        img_save_lossy(img, output_dir, args.nowebp, additional_args)
 
     else:
         print(colored(str(img.img.format).lower(), 'blue'))
@@ -336,11 +337,8 @@ def calc_minsize_target(img_size, target_minsize):
         else (new_maxsize, target_minsize)
 
 
-def img_save_webp_or_jpg(img, output_dir, args):
-    additional_args = {"quality": args.convert_quality,
-                       "lossless": args.lossless,
-                       "origcopy": not args.orignocopy}
-    if args.nowebp:
+def img_save_lossy(img, output_dir, nowebp, additional_args):
+    if nowebp:
         ext = 'jpg'
     elif HAVE_JXL:
         ext = 'jxl'
@@ -351,11 +349,12 @@ def img_save_webp_or_jpg(img, output_dir, args):
 
 def img_save(
         img: Img, output_path, ext: str, *,
-        quality=90, lossless=False, compare=True, origcopy=True
+        quality=90, lossless=False, compare=True, origcopy=True,
+        processed=False
 ):
     global PERCENTAGE
     out_file_path = output_path / (img.name.stem + '.' + ext)
-    out_file = BytesIO()         # processed image buffer
+    out_file = BytesIO()         # output image buffer
     i_ext = img.name.suffix[1:]  # input image extension
     # png  -> png, jpg, webp
     # jpg  -> png, jpg, webp
@@ -393,7 +392,7 @@ def img_save(
                 kwargs.pop("subsampling", None)
                 img.img.save(out_file, ext, **kwargs)
         elif ext == 'jxl':
-            out_file = save_jxl(img, i_ext, **kwargs)
+            out_file = save_jxl(img, i_ext, **kwargs, to_png=processed)
         elif ext == 'png':
             # reduce color palette
             # img.img = img.img.convert(mode='P', palette=Image.ADAPTIVE)
@@ -408,14 +407,14 @@ def img_save(
             img.img = img.img.convert('RGB')
             img.img.save(out_file, ext, **kwargs)
         elif ext == 'jxl':
-            out_file = save_jxl(img, i_ext, **kwargs)
+            out_file = save_jxl(img, i_ext, **kwargs, to_png=processed)
         else:
             img.img.save(out_file, ext, **kwargs)
 
     # INPUT -- WEBP
     elif i_ext == 'webp':
         if ext == 'jxl':
-            out_file = save_jxl(img, i_ext, **kwargs)
+            out_file = save_jxl(img, i_ext, **kwargs, to_png=processed)
         else:
             img.img.save(out_file, ext, **kwargs)
 
@@ -449,12 +448,13 @@ def img_save(
         print("Image not saved")
 
 
-def save_jxl(img: Img, input_extension, quality=92, lossless=False):
+def save_jxl(img: Img, input_extension, quality=92, lossless=False,
+             to_png=False):
     temp = 0
     bufer = tempfile.NamedTemporaryFile(prefix="jxl_")
-
-    if input_extension == "webp":  # cjxl does't support webp as input
-        # save webp as temp png
+    # cjxl does't support webp as input
+    if to_png or input_extension == "webp":
+        # save as temp png
         temp = tempfile.NamedTemporaryFile(prefix="png_")
         img.img.save(temp, "png")
         cmd = "cjxl " + temp.name
