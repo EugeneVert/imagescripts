@@ -8,6 +8,7 @@ import glob
 import shutil
 import argparse
 from argparse import RawTextHelpFormatter
+import subprocess
 
 # getting image size
 from PIL import Image
@@ -35,7 +36,9 @@ The resized images to a smaller size, the original image names, a rename script 
     parser.add_argument('--noarchive', action='store_true',
                         help="Don't create archive with non-resized original images")
     parser.add_argument('-crf', dest='crf', type=int, default=12,
-                        help='Specify video CRF')
+                        help='Specify video CRF/quality')
+    parser.add_argument('-b:v', dest='bitrate_video', type=str,
+                        help='Specify video bitrate')
     parser.add_argument('-r', '--fps', dest='fps', type=int, default=2,
                         help='Specify video framerate')  # NOTE fps default value check on gen_extract_file in image2video
     parser.add_argument('-c:f', dest='format', default='mp4',
@@ -86,31 +89,64 @@ def image2video(in_files, args, dimensions=None):  # TODO Specify name of out.mp
         print("CRF", args.crf)
     print('\n\n\n')
 
+    vformat = 0
     if args.format == 'mp4':
         ffmpegarg = {"crf": args.crf, "preset": "veryslow",
                      "tune": "animation", "deblock": "-3:-3"}
+    elif args.format == 'apng':
+        ffmpegarg = {}
     elif args.format == 'vp9':
-        ffmpegarg = {"crf": args.crf, "pix_fmt": "yuv444p", "c:v": "libvpx-vp9"}
-        args.format = 'webm'
+        ffmpegarg = {"crf": args.crf, "b:v": 0, "pix_fmt": "yuv444p", "c:v": "libvpx-vp9"}
+        vformat = 'webm'
     elif args.format == 'av1-aom':
-        print("TODO optimize arguments")
-        ffmpegarg = {"crf": args.crf, "c:v": "libaom-av1"}
-        args.format = 'mp4'
+        ffmpegarg = {"c:v": "libaom-av1",
+                     "cpu-used": 4, "tiles": "4x1", "strict": -2}  # "row-mt": 1
+        if args.bitrate_video:
+            ffmpegarg["b:v"] = args.bitrate_video
+        else:
+            ffmpegarg["crf"] = args.crf
+        vformat = 'mp4'
     elif args.format == 'av1-rav1e':
-        ffmpegarg = {"pix_fmt": "yuv444p", "c:v": "librav1e", "qp": 50, "tiles": 4}
-        args.format = 'mp4'
+        ffmpegarg = {"c:v": "librav1e",
+                     "tiles": 4, "strict": -2}
+        if args.bitrate_video:
+            ffmpegarg["b:v"] = str(args.bitrate_video)
+        else:
+            ffmpegarg["qp"] = args.crf
+        vformat = 'mp4'
     elif args.format == 'y4m':
         ffmpegarg = {"pix_fmt": "yuv444p"}
-    (
-        ffmpeg
-        .input((img_dir + '/*' + img_ext).replace('[','\[').replace(']','\]'),
-               pattern_type='glob', framerate=args.fps)
-        .filter('scale', WH[0], WH[1], force_original_aspect_ratio='decrease')
-        .filter('pad', WH[0], WH[1], '(ow-iw)/2', '(oh-ih)/2', args.background)  # TODO background color calculation
-        .output(name + '.' + args.format, **ffmpegarg)
-        .run()
-    )
-    gen_extract_file(WH, img_size_dict, name, args)
+
+    if not vformat:
+        vformat = args.format
+
+    stream = ffmpeg.input((img_dir + '/*' + img_ext).replace('[','\[').replace(']','\]'),
+                          pattern_type='glob', framerate=args.fps)
+    stream = ffmpeg.filter(stream, 'scale', WH[0], WH[1], force_original_aspect_ratio='decrease')
+    stream = ffmpeg.filter(stream, 'pad', WH[0], WH[1], '(ow-iw)/2', '(oh-ih)/2', args.background)  # TODO background color calculation
+    # if args.format == 'vp9':
+    #     stream = ffmpeg.output(stream, name + '.' + vformat, **ffmpegarg, "pass", 1, an="", f="null /dev/null")
+    #     stream = ffmpeg.output(stream, name + '.' + vformat, **ffmpegarg)
+    stream = ffmpeg.output(stream, name + '.' + vformat, **ffmpegarg)
+
+    if args.format in ('vp9', 'av1-aom'):
+        ffmpeg_two_pass(stream)
+    else:
+        ffmpeg.run(stream)
+    _gen_extract_file(WH, img_size_dict, name, args, vformat)
+
+
+def ffmpeg_two_pass(stream):
+    args = list(ffmpeg.compile(stream))
+    name = args.pop(-1)
+    args1pass = args + ["-pass", "1", "-hide_banner", "-an", "-f", "null", "/dev/null"]
+    print(args1pass)
+    args2pass = args + ["-pass", "2", name]
+    print(args2pass)
+    process = subprocess.Popen(args1pass)
+    process.communicate(input)
+    process = subprocess.Popen(args2pass)
+    out, err = process.communicate(input)
 
 
 def images_size_targ(images):
@@ -136,7 +172,7 @@ def list_most_frequent(List):
     return _res
 
 
-def gen_extract_file(WH, img_size_dict, out_dname, args):  # TODO Specify name of out.mp4 (image2video)
+def _gen_extract_file(WH, img_size_dict, out_dname, args, vformat):  # TODO Specify name of out.mp4 (image2video)
     fps = args.fps
     img_list = [os.path.basename(i) for i in sorted(img_size_dict.keys())]
     fullname = img_list[0]
@@ -152,7 +188,7 @@ def gen_extract_file(WH, img_size_dict, out_dname, args):  # TODO Specify name o
     f = open('_frames.sh', 'w')
     f.write('#!/usr/bin/env bash\n')
     f.write("""
-for i in *.mp4
+for i in *.{0}
 do
     if [ -L "$i" ]
     then continue; fi
@@ -160,7 +196,7 @@ do
     mkdir "$dirname"
     ffmpeg -i "$i" -vsync 2 ./"$dirname"/img%03d.png
 done
-""".format(fps))
+""".format(vformat))
     f.close()
 
     print('rename.sh')
