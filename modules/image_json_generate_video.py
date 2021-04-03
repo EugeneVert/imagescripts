@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
+#
+# 2021 Eugene Vert; eugene.a.vert@gmail.com
+
 """
 From Zips(frames + json(filename + duration)) in folder To video
 """
+
 import os
-import json
+import argparse
 import zipfile
 import tempfile
-import argparse
+import json
+
 from pathlib import Path
+
 import ffmpeg
+
 
 def main(*args):
     parser = argparse.ArgumentParser(

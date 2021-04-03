@@ -1,15 +1,27 @@
 #!/usr/bin/env python3
 #
-# 2020 Eugene Vert; eugene.a.vert@gmail.com
+# 2021 Eugene Vert; eugene.a.vert@gmail.com
+
+"""Script for finding similar images by hash
+
+Doesn't really working well
+Images with dubious similarity opens in image viewer
+
+Minimum count of similar images to move in separate dir is asked on run
+1'st optional argument -- path
+"""
 
 import os
 import sys
 import shutil
 import subprocess
+
 import imagehash
+
 from PIL import Image
 from termcolor import colored
 
+from imagescripts_utils import file_move
 
 def main(argv):
     print(argv)
@@ -153,13 +165,6 @@ def images_sort_by_hash(simillars, src_dir):
         print('hash : ' + str(i[1]))
         fileformat = filename.split(".")[-1]
         shutil.copy2(str(src_dir + '/' + filename), str(src_dir + '/out/' + str(num) + '.' + fileformat))
-
-
-def file_move(srcdir: str, filename: str, dirname: str, msg: str = ''):
-    print(msg)
-    if not os.path.exists(srcdir + '/' + dirname):
-        os.mkdir(srcdir + '/' + dirname)
-    os.rename(srcdir + '/' + filename, srcdir + '/' + dirname + '/' + filename)
 
 
 if __name__ == '__main__':

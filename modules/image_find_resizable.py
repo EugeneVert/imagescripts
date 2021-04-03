@@ -1,12 +1,24 @@
 #!/usr/bin/env python3
 #
-# 2020 Eugene Vert; eugene.a.vert@gmail.com
+# 2021 Eugene Vert; eugene.a.vert@gmail.com
+
+"""Script to find images with size bigger then given
+
+This script can sort 'resizeble' images to folders based on their property's.
+Png's can be sorted separately, based on their resolution and file-size
+
+Parameters input via ncurses menu
+1'st optional argument -- path
+"""
 
 import os
 import sys
+
 from PIL import Image
 from termcolor import colored
+
 from ncurses.cursesmultisel import DisplayMenu
+from imagescripts_utils import file_move
 
 
 OPTIONS = [
@@ -18,18 +30,75 @@ OPTIONS = [
     ['move non-images to ./mv', 'sw'],
 ]
 
-def confirmprompt(promptin):
-    answer = ""
-    while answer not in ["y", "n"]:
-        answer = input(promptin +" [Y/N]? ").lower()
-    return answer == "y"
 
+def main(options, argv):
+    activeopt = list()
+    print(argv)
+    if len(argv) >= 2:
+        print('by argument')
+        targetdir = os.path.abspath(argv[1])
+    else:
+        print('by cwd')
+        targetdir = os.getcwd()
 
-def file_move(srcdir: str, filename: str, dirname: str, msg: str = ''):
-    print(msg)
-    if not os.path.exists(srcdir + '/' + dirname):
-        os.mkdir(srcdir + '/' + dirname)
-    os.rename(srcdir + '/' + filename, srcdir + '/' + dirname + '/' + filename)
+    filesindir = [f.name for f in os.scandir(targetdir) if f.is_file()]
+    print(colored('Path: ' + targetdir, 'yellow'))
+    if(not [f for f in filesindir if f.endswith(('.png', '.jpg'))]):
+        print('\033[4m' + colored('No images', 'red') + '\033[0m')
+        sys.exit('')
+
+    input('Press any key')
+
+    DisplayMenu(options, activeopt)
+    if not activeopt:
+        return
+    print(activeopt)
+
+    sizetarg = ''
+    png_sort = 0
+    # png_sizetarg = ''
+    png_sizetarg_MiB = ''
+    png_sizetarg_px = ''
+    nonimagetomv = 0
+
+    for element in activeopt:
+        if 'mv img size px' in element:
+            sizetarg = int(element[1])
+            print('sizetarg', sizetarg)
+        # if 'mv png less that' in element:
+        #     png_sizetarg = int(element[1])
+        #     print('png_sizetarg', png_sizetarg)
+        if 'mv png size MiB' in element:
+            png_sizetarg_MiB = float(element[1])
+            print('png_sizetarg_MiB', png_sizetarg_MiB)
+        if 'mv png size px' in element:
+            png_sizetarg_px = int(element[1])
+            print('png_sizetarg_px', png_sizetarg_px)
+    if not sizetarg:
+        print(colored('Error, no resize target! default - 3508 set', 'red'))
+        sizetarg = 3508
+    # if not png_sizetarg:
+    #     print(colored('Error, no png resize target! default - 1024 set', 'red'))
+    #     png_sizetarg = 1024
+    if not png_sizetarg_MiB:
+        print(colored('Error, no png size MiB target! default - 1 MiB set', 'red'))
+        png_sizetarg_MiB = 1
+    if not png_sizetarg_px:
+        print(colored('Error, no png size px target! default - 1024 px set', 'red'))
+        png_sizetarg_px = 1024
+    if 'sort png' in activeopt:
+        png_sort = 1
+    if 'move non-images to ./mv' in activeopt:
+        nonimagetomv = 1
+    os.chdir(targetdir)
+    process_files(filesindir,
+                  targetdir,
+                  sizetarg,
+                  png_sort,
+                  # png_sizetarg,
+                  png_sizetarg_MiB,
+                  png_sizetarg_px,
+                  nonimagetomv)
 
 
 def process_files(filesindir, targetdir, sizetarg, png_sort,
@@ -110,76 +179,6 @@ def process_files(filesindir, targetdir, sizetarg, png_sort,
             if int(imgsizer[0]) > sizetarg or int(imgsizer[1]) > sizetarg:
                 file_move(targetdir, i, 'Resizeble_' + str(sizetarg),
                           'To Resizeble_.../')
-
-
-def main(options, argv):
-    activeopt = list()
-    print(argv)
-    if len(argv) >= 2:
-        print('by argument')
-        targetdir = os.path.abspath(argv[1])
-    else:
-        print('by cwd')
-        targetdir = os.getcwd()
-
-    filesindir = [f.name for f in os.scandir(targetdir) if f.is_file()]
-    print(colored('Path: ' + targetdir, 'yellow'))
-    if(not [f for f in filesindir if f.endswith(('.png', '.jpg'))]):
-        print('\033[4m' + colored('No images', 'red') + '\033[0m')
-        sys.exit('')
-
-    input('Press any key')
-
-    DisplayMenu(options, activeopt)
-    if not activeopt:
-        return
-    print(activeopt)
-
-    sizetarg = ''
-    png_sort = 0
-    # png_sizetarg = ''
-    png_sizetarg_MiB = ''
-    png_sizetarg_px = ''
-    nonimagetomv = 0
-
-    for element in activeopt:
-        if 'mv img size px' in element:
-            sizetarg = int(element[1])
-            print('sizetarg', sizetarg)
-        # if 'mv png less that' in element:
-        #     png_sizetarg = int(element[1])
-        #     print('png_sizetarg', png_sizetarg)
-        if 'mv png size MiB' in element:
-            png_sizetarg_MiB = float(element[1])
-            print('png_sizetarg_MiB', png_sizetarg_MiB)
-        if 'mv png size px' in element:
-            png_sizetarg_px = int(element[1])
-            print('png_sizetarg_px', png_sizetarg_px)
-    if not sizetarg:
-        print(colored('Error, no resize target! default - 3508 set', 'red'))
-        sizetarg = 3508
-    # if not png_sizetarg:
-    #     print(colored('Error, no png resize target! default - 1024 set', 'red'))
-    #     png_sizetarg = 1024
-    if not png_sizetarg_MiB:
-        print(colored('Error, no png size MiB target! default - 1 MiB set', 'red'))
-        png_sizetarg_MiB = 1
-    if not png_sizetarg_px:
-        print(colored('Error, no png size px target! default - 1024 px set', 'red'))
-        png_sizetarg_px = 1024
-    if 'sort png' in activeopt:
-        png_sort = 1
-    if 'move non-images to ./mv' in activeopt:
-        nonimagetomv = 1
-    os.chdir(targetdir)
-    process_files(filesindir,
-                  targetdir,
-                  sizetarg,
-                  png_sort,
-                  # png_sizetarg,
-                  png_sizetarg_MiB,
-                  png_sizetarg_px,
-                  nonimagetomv)
 
 
 if __name__ == "__main__":

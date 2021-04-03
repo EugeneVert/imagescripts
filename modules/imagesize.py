@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
-
-# 2020 Eugene Vert; eugene.a.vert@gmail.com
+#
+# 2021 Eugene Vert; eugene.a.vert@gmail.com
 
 import os, argparse, shutil, re
 import subprocess
-from multiprocessing import Pool
-from pathlib import Path
-from io import BytesIO
 import tempfile
 
+from multiprocessing import Pool, cpu_count
+from pathlib import Path
+from io import BytesIO
+
+from termcolor import colored
 from PIL import Image
 # from PIL import ImageStat
 from PIL.ImageFilter import GaussianBlur, UnsharpMask
-from termcolor import colored
+
+from imagescripts_utils import size2bytes, bite2size
 
 NONIMAGES_DIR_NAME = './mv'
 OLDIMAGES_DIR_NAME = 'old'
@@ -124,6 +127,10 @@ def argument_parser(*args):
     parser.add_argument(
         '-mvo', dest='out_orig_dir',
         help="mv original images to folder")
+    parser.add_argument(
+        '-nproc', dest='nproc', type=int,
+        default=cpu_count(),
+        help="count of procs")
 
     args = parser.parse_args(*args)
 
@@ -193,7 +200,6 @@ def std_wrapper(args):
 
 def images_process(input_images, input_dir, args):
     if args.out_orig_dir:
-        i: Path
         Path.mkdir(input_dir / args.out_orig_dir, exist_ok=True)
         output_orig_dir = input_dir / args.out_orig_dir
         print(output_orig_dir)
@@ -201,7 +207,7 @@ def images_process(input_images, input_dir, args):
     output_dir = input_dir / Path(args.out_dir)
     Path.mkdir(output_dir, exist_ok=True)
 
-    pool = Pool()
+    pool = Pool(args.nproc)
 
     for f in input_images:
         if args.out_orig_dir:
@@ -392,7 +398,7 @@ def img_save(
                 kwargs.pop("subsampling", None)
                 img.img.save(out_file, ext, **kwargs)
         elif ext == 'jxl':
-            out_file = save_jxl(img, i_ext, **kwargs, to_png=processed)
+            out_file = save_jxl(img, i_ext, **kwargs, input2png=processed)
         elif ext == 'png':
             # reduce color palette
             # img.img = img.img.convert(mode='P', palette=Image.ADAPTIVE)
@@ -407,14 +413,14 @@ def img_save(
             img.img = img.img.convert('RGB')
             img.img.save(out_file, ext, **kwargs)
         elif ext == 'jxl':
-            out_file = save_jxl(img, i_ext, **kwargs, to_png=processed)
+            out_file = save_jxl(img, i_ext, **kwargs, input2png=processed)
         else:
             img.img.save(out_file, ext, **kwargs)
 
     # INPUT -- WEBP
     elif i_ext == 'webp':
         if ext == 'jxl':
-            out_file = save_jxl(img, i_ext, **kwargs, to_png=processed)
+            out_file = save_jxl(img, i_ext, **kwargs, input2png=processed)
         else:
             img.img.save(out_file, ext, **kwargs)
 
@@ -448,12 +454,12 @@ def img_save(
         print("Image not saved")
 
 
-def save_jxl(img: Img, input_extension, quality=92, lossless=False,
-             to_png=False):
+def save_jxl(img: Img, input_extension, quality=93, lossless=False,
+             input2png=False):
     temp = 0
     bufer = tempfile.NamedTemporaryFile(prefix="jxl_")
     # cjxl does't support webp as input
-    if to_png or input_extension == "webp":
+    if input2png or input_extension == "webp":
         # save as temp png
         temp = tempfile.NamedTemporaryFile(prefix="png_")
         img.img.save(temp, "png")
@@ -465,11 +471,14 @@ def save_jxl(img: Img, input_extension, quality=92, lossless=False,
     if lossless:
         # Jpg can be transcoded losslessly, no need of modular mode
         if input_extension == "jpg":
-            print("jpg transcode to jxl")
+            if not input2png:
+                print("jpg transcode to jxl")
+            else:
+                cmd += f" -q {quality}"
         else:
             cmd += " -m -s 8"
     else:
-        cmd += f" -q {quality} -p"
+        cmd += f" -q {quality}"
     cmd += " " + bufer.name
     print(cmd)
     proc = subprocess.Popen(cmd, shell=True,
@@ -517,24 +526,6 @@ def image_has_transparency(image: Image.Image):
     if len(image.getbands()) < 4:  # if 'A' not in image.getbands()
         return False
     return image.getextrema()[3][0] < 255-20
-
-
-def size2bytes(size):
-    size_name = ("B", "K", "M", "G")
-    size.upper()
-    size = re.split(r'(\d+)', size)
-    num, unit = int(size[1]), size[2]
-    idx = size_name.index(unit)
-    factor = 1024 ** idx
-    return num * factor
-
-
-def bite2size(num, suffix='iB'):
-    for unit in ['', 'K', 'M', 'G']:
-        if abs(num) < 1024.0:
-            return "%3.1f%s%s" % (num, unit, suffix)
-        num /= 1024.0
-    return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
 def nonimages_mv(i, output_dir):

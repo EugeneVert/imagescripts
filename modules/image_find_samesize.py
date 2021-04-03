@@ -1,11 +1,24 @@
 #!/usr/bin/env python3
 #
-# 2020 Eugene Vert; eugene.a.vert@gmail.com
+# 2021 Eugene Vert; eugene.a.vert@gmail.com
+
+"""Script to find images with same image sizes
+
+This script sort images in given directory (or in current work dir) by their
+image sizes. Images with same image sizes grouped in directory's
+with names of images dimension's.
+
+Minimum count of images of same size is asked on run
+1'st optional argument -- path
+"""
 
 import os
 import sys
+
 from PIL import Image
 from termcolor import colored
+
+from imagescripts_utils import file_move
 
 
 def main(argv):
@@ -23,13 +36,6 @@ def main(argv):
 
     os.chdir(dir_target)
     images_find_eq_res(files_in_dir, dir_target, img_c_min)
-
-
-def file_move(srcdir: str, filename: str, dirname: str, msg: str = ''):
-    print(msg)
-    if not os.path.exists(srcdir + '/' + dirname):
-        os.mkdir(srcdir + '/' + dirname)
-    os.rename(srcdir + '/' + filename, srcdir + '/' + dirname + '/' + filename)
 
 
 def images_find_eq_res(files_in_dir, dir_target, img_c_min):

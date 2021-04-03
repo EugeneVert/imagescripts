@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
 #
-# 2020 Eugene Vert; eugene.a.vert@gmail.com
+# 2021 Eugene Vert; eugene.a.vert@gmail.com
 
 import os
 import sys
 import glob
 import shutil
+import subprocess
 import argparse
 from argparse import RawTextHelpFormatter
-import subprocess
 
 # getting image size
 from PIL import Image
 # video creation
 import ffmpeg
-# orig of resized images arhiving
-# import zipfile
 
 
 def main(*args):
@@ -39,8 +37,9 @@ The resized images to a smaller size, the original image names, a rename script 
                         help='Specify video CRF/quality')
     parser.add_argument('-b:v', dest='bitrate_video', type=str,
                         help='Specify video bitrate')
+    # NOTE fps default value check on gen_extract_file in image2video
     parser.add_argument('-r', '--fps', dest='fps', type=int, default=2,
-                        help='Specify video framerate')  # NOTE fps default value check on gen_extract_file in image2video
+                        help='Specify video framerate')
     parser.add_argument('-c:f', dest='format', default='mp4',
                         help='Specify video format for ffmpeg')
     args = parser.parse_args(*args)
@@ -76,7 +75,8 @@ The resized images to a smaller size, the original image names, a rename script 
             os.chdir(owd)
 
 
-def image2video(in_files, args, dimensions=None):  # TODO Specify name of out.mp4
+# TODO Specify name of out.mp4
+def image2video(in_files, args, dimensions=None):
     img_dir = os.path.dirname(in_files[0])
     fullname = os.path.basename(sorted(in_files)[0])
     # set output filename same as first image
@@ -91,12 +91,14 @@ def image2video(in_files, args, dimensions=None):  # TODO Specify name of out.mp
 
     vformat = 0
     if args.format == 'mp4':
-        ffmpegarg = {"crf": args.crf, "preset": "veryslow",
+        ffmpegarg = {"c:v": "libx264",
+                     "crf": args.crf, "preset": "veryslow",
                      "tune": "animation", "deblock": "-3:-3"}
     elif args.format == 'apng':
         ffmpegarg = {}
     elif args.format == 'vp9':
-        ffmpegarg = {"crf": args.crf, "b:v": 0, "pix_fmt": "yuv444p", "c:v": "libvpx-vp9"}
+        ffmpegarg = {"c:v": "libvpx-vp9",
+                     "crf": args.crf, "b:v": 0, "pix_fmt": "yuv444p", }
         vformat = 'webm'
     elif args.format == 'av1-aom':
         ffmpegarg = {"c:v": "libaom-av1",
@@ -120,10 +122,13 @@ def image2video(in_files, args, dimensions=None):  # TODO Specify name of out.mp
     if not vformat:
         vformat = args.format
 
-    stream = ffmpeg.input((img_dir + '/*' + img_ext).replace('[','\[').replace(']','\]'),
-                          pattern_type='glob', framerate=args.fps)
-    stream = ffmpeg.filter(stream, 'scale', WH[0], WH[1], force_original_aspect_ratio='decrease')
-    stream = ffmpeg.filter(stream, 'pad', WH[0], WH[1], '(ow-iw)/2', '(oh-ih)/2', args.background)  # TODO background color calculation
+    stream = ffmpeg.input(
+        (img_dir + '/*' + img_ext).replace('[', '\[').replace(']', '\]'),
+        pattern_type='glob', framerate=args.fps)
+    stream = ffmpeg.filter(
+        stream, 'scale', WH[0], WH[1], force_original_aspect_ratio='decrease')
+    stream = ffmpeg.filter(
+        stream, 'pad', WH[0], WH[1], '(ow-iw)/2', '(oh-ih)/2', args.background)  # TODO background color calculation
     # if args.format == 'vp9':
     #     stream = ffmpeg.output(stream, name + '.' + vformat, **ffmpegarg, "pass", 1, an="", f="null /dev/null")
     #     stream = ffmpeg.output(stream, name + '.' + vformat, **ffmpegarg)
@@ -172,7 +177,8 @@ def list_most_frequent(List):
     return _res
 
 
-def _gen_extract_file(WH, img_size_dict, out_dname, args, vformat):  # TODO Specify name of out.mp4 (image2video)
+# TODO Specify name of out.mp4 (image2video)
+def _gen_extract_file(WH, img_size_dict, out_dname, args, vformat):
     fps = args.fps
     img_list = [os.path.basename(i) for i in sorted(img_size_dict.keys())]
     fullname = img_list[0]
@@ -206,7 +212,8 @@ done
 
     if not args.noarchive:
         resize_dict = gen_resize_dict(WH, img_size_dict, img_list, out_dname)
-    else: resize_dict = ''
+    else:
+        resize_dict = ''
     inv_resize_dict = {}
 
     if resize_dict:
@@ -225,7 +232,9 @@ done
                     ' -quality 95' +
                     # TODO Lossles images -> resize -> lossy
                     ' -extent ' + str(i[0][0])+'x'+str(i[0][1])+'! ' +
-                    " ".join(map(lambda x: '"' + ("img{:03d}.jpg").format(img_list.index(x) + 1) + '"', i[1])) + ' ; '
+                    " ".join(map(lambda x: '"' + ("img{:03d}.jpg")
+                                 .format(img_list.index(x) + 1) + '"', i[1]))
+                    + ' ; '
                     )
         f.write('cd .. ; ')
         f.write('fi')
@@ -237,7 +246,7 @@ done
 def list_to_str(src: list):
     s = str()
     for i in src:
-        formated = '"'+ str(i) +'" '
+        formated = '"' + str(i) + '" '
         s += formated
     return s
 
@@ -278,7 +287,8 @@ def after_gen(path, out_dname):
 
 def make_archive(path, path_d):
     if os.listdir(path_d):
-        shutil.make_archive(path_d, 'zip', path, os.path.basename(path_d) + '/')
+        shutil.make_archive(path_d, 'zip',
+                            path, os.path.basename(path_d) + '/')
     shutil.rmtree(path_d)
 
 
