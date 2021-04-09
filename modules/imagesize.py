@@ -86,6 +86,8 @@ def argument_parser(*args):
     parser.add_argument(
         '-lossless', action='store_true',
         help="keep png lossless")
+    parser.add_argument('-slow', action="store_true",
+                        help="Slow lossless jxl encode")
     parser.add_argument(
         '-ask', action='store_true',
         help='ask resize for each resizable')
@@ -209,7 +211,7 @@ def images_process(input_images, input_dir, args):
 
     pool = Pool(args.nproc)
 
-    for f in input_images:
+    for f in sorted(input_images):
         if args.out_orig_dir:
             f = f.rename(output_orig_dir / f.name)
         # image_process(f, input_dir, output_dir, args)
@@ -303,7 +305,8 @@ def image_process(f, input_dir, output_dir, args):
     additional_args = {"quality": args.convert_quality,
                        "lossless": args.lossless,
                        "origcopy": not args.orignocopy,
-                       "processed": processed}
+                       "processed": processed,
+                       "slow_enc": args.slow}
 
     # optional convert to format
     if args.convert_format:
@@ -356,7 +359,7 @@ def img_save_lossy(img, output_dir, nowebp, additional_args):
 def img_save(
         img: Img, output_path, ext: str, *,
         quality=90, lossless=False, compare=True, origcopy=True,
-        processed=False
+        processed=False, slow_enc=False
 ):
     global PERCENTAGE
     out_file_path = output_path / (img.name.stem + '.' + ext)
@@ -398,7 +401,7 @@ def img_save(
                 kwargs.pop("subsampling", None)
                 img.img.save(out_file, ext, **kwargs)
         elif ext == 'jxl':
-            out_file = save_jxl(img, i_ext, **kwargs, input2png=processed)
+            out_file = save_jxl(img, i_ext, **kwargs, input2png=processed, slow=slow_enc)
         elif ext == 'png':
             # reduce color palette
             # img.img = img.img.convert(mode='P', palette=Image.ADAPTIVE)
@@ -413,14 +416,14 @@ def img_save(
             img.img = img.img.convert('RGB')
             img.img.save(out_file, ext, **kwargs)
         elif ext == 'jxl':
-            out_file = save_jxl(img, i_ext, **kwargs, input2png=processed)
+            out_file = save_jxl(img, i_ext, **kwargs, input2png=processed, slow=slow_enc)
         else:
             img.img.save(out_file, ext, **kwargs)
 
     # INPUT -- WEBP
     elif i_ext == 'webp':
         if ext == 'jxl':
-            out_file = save_jxl(img, i_ext, **kwargs, input2png=processed)
+            out_file = save_jxl(img, i_ext, **kwargs, input2png=processed, slow=slow_enc)
         else:
             img.img.save(out_file, ext, **kwargs)
 
@@ -455,7 +458,7 @@ def img_save(
 
 
 def save_jxl(img: Img, input_extension, quality=93, lossless=False,
-             input2png=False):
+             input2png=False, slow=False):
     temp = 0
     bufer = tempfile.NamedTemporaryFile(prefix="jxl_")
     # cjxl does't support webp as input
@@ -476,7 +479,7 @@ def save_jxl(img: Img, input_extension, quality=93, lossless=False,
             else:
                 cmd += f" -q {quality}"
         else:
-            cmd += " -m -s 8"
+            cmd += " -m -s 9 -E 3" if slow else " -m -s 8"
     else:
         cmd += f" -q {quality}"
     cmd += " " + bufer.name
