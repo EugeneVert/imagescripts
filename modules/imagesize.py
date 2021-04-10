@@ -73,18 +73,18 @@ def argument_parser(*args):
         'path', nargs='?',
         help="dir with images")
     parser.add_argument(
-        '-o', dest="out_dir", type=str,
+        '-o', '--output', dest="out_dir", type=str,
         default=str('./test'),
         help="output dir \n    (default: %(default)s)")
     parser.add_argument(
         '-c:f', dest='convert_format', type=str,
         help="set output format for all files")
     parser.add_argument(
-        '-c:q', dest='convert_quality', type=int,
+        '-c:q', dest='convert_quality', type=float,
         default=int(92),
         help='quality setting \n    (default: %(default)s)')
     parser.add_argument(
-        '-lossless', action='store_true',
+        '-l', '--lossless', action='store_true',
         help="keep png lossless")
     parser.add_argument('-slow', action="store_true",
                         help="Slow lossless jxl encode")
@@ -92,7 +92,7 @@ def argument_parser(*args):
         '-ask', action='store_true',
         help='ask resize for each resizable')
     parser.add_argument(
-        '-resize', dest='size', type=str,
+        '-r', '--resize', dest='size', type=str,
         default=str(3508),
         help='set resize size.\n  Add "x" to end to resize by smallest side' +
         '\n    (default: %(default)s)' +
@@ -477,6 +477,7 @@ def save_jxl(img: Img, input_extension, quality=93, lossless=False,
             if not input2png:
                 print("jpg transcode to jxl")
             else:
+                print(colored("PROCESSED JPG, NOT LOSSLESS", "red"))
                 cmd += f" -q {quality}"
         else:
             cmd += " -m -s 9 -E 3" if slow else " -m -s 8"
