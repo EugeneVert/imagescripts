@@ -20,9 +20,12 @@ def argument_parser(*args):
     parser.add_argument(
         'path', nargs='?',
         help="dir with images")
-    parser.add_argument("-bpp", type=float, default=100,
-                        help="Move images with bpp < %BPP%")
-    parser.add_argument("-mv", type=bool, default=False,
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("-l", type=float,
+                        help="Move images with bpp < BPP")
+    group.add_argument("-b", type=float,
+                        help="Move images with bpp > BPP")
+    parser.add_argument("-mv", action="store_true",
                         help="Move non-images (not png, jpg, webp)")
     args = parser.parse_args(*args)
     return args
@@ -39,13 +42,22 @@ def sort_by_bpp(image, path_bpp, args):
     bpp = filesize*8/px_count
 
     print(f"File: {filename.name}\n bpp: {bpp}")
-    if bpp > args.bpp:
-        print(f"Move to {path_bpp.name}")
-        filename.rename(path_bpp / filename.name)
+
+    mode = "lesser" if args.l else "bigger"
+    if mode == "lesser":
+        if bpp < args.l:
+            print(f"Move to {path_bpp.name}")
+            filename.rename(path_bpp / filename.name)
+    else:
+        if bpp > args.b:
+            print(f"Move to {path_bpp.name}")
+            filename.rename(path_bpp / filename.name)
+            
 
 
 def main(*args):
     args = argument_parser(*args)
+    args.bpp = args.l if args.l else args.b
 
     if args.path:
         print('by argument')
