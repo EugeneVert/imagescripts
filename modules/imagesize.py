@@ -476,6 +476,7 @@ def save_jxl(img: Img, input_extension, quality=93, lossless=False,
         # Jpg can be transcoded losslessly, no need of modular mode
         if input_extension == "jpg":
             if not input2png:
+                cmd += " -s 8"
                 print("jpg transcode to jxl")
             else:
                 print(colored("PROCESSED JPG, NOT LOSSLESS", "red"))

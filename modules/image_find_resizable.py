@@ -27,7 +27,7 @@ def argument_parser(*args):
                         help='Path of a dir.')
     parser.add_argument("-s", "--size",
                         help="move img size px   (default: %(default)s)\n(Note: A4 sizes(px) -- 1240,1754,2480,3508,4960,5953,7016)",
-                        default=3508)
+                        default=3508, type=int)
     parser.add_argument("-p", "--png-sort",
                         help="move png's to different folder",
                         action="store_true")
@@ -88,10 +88,10 @@ def process_files(input_images, args):
 
     # NOTE path_png on end to properly delete empty dir's
     paths = (path_size,
+             path_png_mib_size,
              path_png_mib,
              path_png_px,
              path_png_size,
-             path_png_mib_size,
              path_png)
 
     for d in paths:
