@@ -39,7 +39,7 @@ elif task == 'find':
     subtask = args.subtask
     if subtask == 'resizable':
         import modules.image_find_resizable as resizable
-        resizable.main(resizable.OPTIONS, sys.argv[2:])
+        resizable.main(sys.argv[3:])
     if subtask == 'samesize':
         import modules.image_find_samesize as samesize
         samesize.main(sys.argv[2:])

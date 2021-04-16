@@ -6,182 +6,136 @@
 
 This script can sort 'resizeble' images to folders based on their property's.
 Png's can be sorted separately, based on their resolution and file-size
-
-Parameters input via ncurses menu
-1'st optional argument -- path
 """
 
 import os
-import sys
+import argparse
+from pathlib import Path
 
 from PIL import Image
 from termcolor import colored
 
-from ncurses.cursesmultisel import DisplayMenu
-from imagescripts_utils import file_move
+
+NONIMAGES_DIR_NAME = './mv'
 
 
-OPTIONS = [
-    ['sort png', 'sw'],
-    # ['mv png less that', 'txt', '1024'],
-    ['mv png size MiB', 'txt', '1.2'],
-    ['mv png size px', 'txt', '1754'],
-    ['mv img size px', 'txt', '3508'],
-    ['move non-images to ./mv', 'sw'],
-]
+def argument_parser(*args):
+    parser = argparse.ArgumentParser(description="\
+        Find images larger than the specified imagesize",
+        formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('path', nargs='?',
+                        help='Path of a dir.')
+    parser.add_argument("-s", "--size",
+                        help="move img size px   (default: %(default)s)\n(Note: A4 sizes(px) -- 1240,1754,2480,3508,4960,5953,7016)",
+                        default=3508)
+    parser.add_argument("-p", "--png-sort",
+                        help="move png's to different folder",
+                        action="store_true")
+    parser.add_argument("-p:p", "--png_size_px",
+                        help="move png size px   (default: %(default)s)",
+                        default=1754, type=int)
+    parser.add_argument("-p:m", "--png_size_mib",
+                        help="move png size MiB  (default: %(default)s)",
+                        default=1.3, type=float)
+    parser.add_argument("-n", "--nonimages-mv",
+                        help="move non-images to ./mv folder",
+                        action="store_true")
+
+    return parser.parse_args(*args)
 
 
-def main(options, argv):
-    activeopt = list()
-    print(argv)
-    if len(argv) >= 2:
+def main(*args):
+    args = argument_parser(*args)
+    print(args)
+    if args.path:
         print('by argument')
-        targetdir = os.path.abspath(argv[1])
+        input_dir = Path(args.path)
     else:
         print('by cwd')
-        targetdir = os.getcwd()
+        input_dir = Path.cwd()
+        args.path = "."
+    print(colored('Path: ' + str(input_dir.resolve()), 'yellow'))
 
-    filesindir = [f.name for f in os.scandir(targetdir) if f.is_file()]
-    print(colored('Path: ' + targetdir, 'yellow'))
-    if(not [f for f in filesindir if f.endswith(('.png', '.jpg'))]):
-        print('\033[4m' + colored('No images', 'red') + '\033[0m')
-        sys.exit('')
+    input_dir_files = \
+        [f for f in input_dir.iterdir() if f.is_file()]
+    input_dir_images = \
+        [f for f in input_dir_files if f.name.endswith(('.png', '.jpg', '.webp'))]
+    input_dir_nonimages = list(set(input_dir_files) - set(input_dir_images))
 
-    input('Press any key')
-
-    DisplayMenu(options, activeopt)
-    if not activeopt:
+    if not input_dir_images:
+        print(colored('No images', 'red'))
         return
-    print(activeopt)
 
-    sizetarg = ''
-    png_sort = 0
-    # png_sizetarg = ''
-    png_sizetarg_MiB = ''
-    png_sizetarg_px = ''
-    nonimagetomv = 0
+    Path.mkdir(input_dir / NONIMAGES_DIR_NAME, exist_ok=True)
+    nonimages_dir = input_dir / NONIMAGES_DIR_NAME
+    if args.nonimages_mv:
+        for f in input_dir_nonimages:
+            Path.rename(f, nonimages_dir / f.name)
 
-    for element in activeopt:
-        if 'mv img size px' in element:
-            sizetarg = int(element[1])
-            print('sizetarg', sizetarg)
-        # if 'mv png less that' in element:
-        #     png_sizetarg = int(element[1])
-        #     print('png_sizetarg', png_sizetarg)
-        if 'mv png size MiB' in element:
-            png_sizetarg_MiB = float(element[1])
-            print('png_sizetarg_MiB', png_sizetarg_MiB)
-        if 'mv png size px' in element:
-            png_sizetarg_px = int(element[1])
-            print('png_sizetarg_px', png_sizetarg_px)
-    if not sizetarg:
-        print(colored('Error, no resize target! default - 3508 set', 'red'))
-        sizetarg = 3508
-    # if not png_sizetarg:
-    #     print(colored('Error, no png resize target! default - 1024 set', 'red'))
-    #     png_sizetarg = 1024
-    if not png_sizetarg_MiB:
-        print(colored('Error, no png size MiB target! default - 1 MiB set', 'red'))
-        png_sizetarg_MiB = 1
-    if not png_sizetarg_px:
-        print(colored('Error, no png size px target! default - 1024 px set', 'red'))
-        png_sizetarg_px = 1024
-    if 'sort png' in activeopt:
-        png_sort = 1
-    if 'move non-images to ./mv' in activeopt:
-        nonimagetomv = 1
-    os.chdir(targetdir)
-    process_files(filesindir,
-                  targetdir,
-                  sizetarg,
-                  png_sort,
-                  # png_sizetarg,
-                  png_sizetarg_MiB,
-                  png_sizetarg_px,
-                  nonimagetomv)
+    process_files(input_dir_images, args)
+
+    if not os.listdir(nonimages_dir):
+        Path.rmdir(nonimages_dir)
 
 
-def process_files(filesindir, targetdir, sizetarg, png_sort,
-                  png_sizetarg_MiB, png_sizetarg_px, nonimagetomv):
-    for i in filesindir:
+def process_files(input_images, args):
+    path_size = Path(args.path + '/Resizeble_' + str(args.size) + '/')
+    path_png = Path(args.path + '/pngs/')
+    path_png_size = Path(args.path + '/pngs/Resizeble_' + str(args.size) + '/')
+    path_png_px = Path(args.path + '/pngs/Smaller_' + str(args.png_size_px) + '/')
+    path_png_mib = Path(args.path + '/pngs/Size_' + str(args.png_size_mib) + '/')
+    path_png_mib_size = Path(args.path + '/pngs/Size_' + str(args.png_size_mib) + '/' + str(args.size))
+
+    # NOTE path_png on end to properly delete empty dir's
+    paths = (path_size,
+             path_png_mib,
+             path_png_px,
+             path_png_size,
+             path_png_mib_size,
+             path_png)
+
+    for d in paths:
+        d.mkdir(exist_ok=True, parents=True)
+
+    for i in input_images:
+
+        print('file :', i.name)
+
         img = None
-
-        print('file :', i)
         try:
-            if i.endswith(('.png', '.jpg')):
-                img = Image.open(i)
-        except:
+            img = Image.open(i)
+        except IOError:
             print(colored("Can't open image", "red"))
             continue
+        print(img.size)
 
-        # Move non-images/animations to 'mv' dir
-        if not i.endswith('.jpg'):
-            if(
-                    not i.endswith('.png') or
-                    i.endswith('.png') and img.get_format_mimetype() == 'image/apng'
-            ):
-                if nonimagetomv:
-                    file_move(targetdir, i, 'mv',
-                              colored('Not an png/jpg, moving to mv directory', 'red'))
-                continue
+        if args.png_sort and i.name.endswith('.png'):
+            png_filesize = i.stat().st_size / (1024*1024.0)
+            # PNG FILESIZE > args.png_size_mib
+            if png_filesize > args.png_size_mib:
+                if int(img.size[0]) > args.size or int(img.size[1]) > args.size:
+                    i.rename(path_png_mib_size / i.name)
+                else:
+                    i.rename(path_png_mib / i.name)
+            # PNG PX SIZE > args.size
+            elif int(img.size[0]) > args.size or int(img.size[1]) > args.size:
+                i.rename(path_png_size / i.name)
+            # PNG PX SIZE < args.png_size_px
+            elif int(img.size[0]) < args.png_size_px and int(img.size[1]) < args.png_size_px:
+                i.rename(path_png_px / i.name)
+            else:
+                i.rename(path_png / i.name)
+            continue
 
-        path_resizebles = targetdir + '/Resizeble_' + str(sizetarg) + '/'
-        if not os.path.exists(path_resizebles):
-            os.mkdir(path_resizebles)
-            print(colored('Creating dir ./Resizeble_' + str(sizetarg), 'green'))
-        path_png_mv = targetdir + '/pngs/'
-        if png_sort and not os.path.exists(path_png_mv):
-            os.mkdir(path_png_mv)
-            print(colored('Creating dir ./pngs/', 'green'))
-        # path_png_mv_resizebles = targetdir + '/pngs/' + str(png_sizetarg) + '/'
-        # if png_sort and not os.path.exists(path_png_mv_resizebles):
-        #     os.mkdir(path_png_mv_resizebles)
-        #     print(colored('Creating dir ./pngs/Resizeble_' + str(png_sizetarg), 'green'))
-        path_png_mv_size = targetdir + '/pngs/Size_' + str(png_sizetarg_MiB) + '/'
-        if png_sort and not os.path.exists(path_png_mv_size):
-            os.mkdir(path_png_mv_size)
-            print(colored('Creating dir ./pngs/Resizeble_' + str(png_sizetarg_MiB), 'green'))
+        if int(img.size[0]) > args.size or int(img.size[1]) > args.size:
+            i.rename(path_size / i.name)
+            continue
 
-        imgsizer = img.size
-        print(imgsizer)
-
-        if png_sort:
-            if i.endswith('.png'):
-                png_filesize = os.path.getsize(targetdir + '/' + i) / (1024*1024.0)
-                # if int(imgsizer[0]) > png_sizetarg or int(imgsizer[1]) > png_sizetarg:
-                #     file_move(targetdir, i, 'pngs/Resizeble_' + str(png_sizetarg),
-                #               'To pngs/Resizeble_.../')
-                #     continue
-                if png_filesize > png_sizetarg_MiB:
-                    if int(imgsizer[0]) > sizetarg or int(imgsizer[1]) > sizetarg:
-                        file_move(targetdir, i, 'pngs/Size_' + str(png_sizetarg_MiB) +
-                                  '/Resizeble_' + str(sizetarg),
-                                  colored('To pngs/Size_...', 'blue') +
-                                  colored('/Resizeble_...', 'yellow'))
-                        continue
-                    if int(imgsizer[0]) < png_sizetarg_px and int(imgsizer[1]) < png_sizetarg_px:
-                        file_move(targetdir, i, 'pngs/Size_' + str(png_sizetarg_MiB)
-                                  + '/Smaller_' + str(png_sizetarg_px),
-                                  colored('To pngs/Size...', 'blue') +
-                                  colored('/Smaller...', 'cyan'))
-                        continue
-                    file_move(targetdir, i, 'pngs/Size_' + str(png_sizetarg_MiB),
-                              colored('To pngs/Size_.../', 'blue'))
-                    continue
-                file_move(targetdir, i, 'pngs', 'To pngs/')
-                continue
-            if i.endswith('.jpg'):
-                if int(imgsizer[0]) > sizetarg or int(imgsizer[1]) > sizetarg:
-                    file_move(targetdir, i, 'Resizeble_' + str(sizetarg),
-                              colored('To Resizeble_.../', 'yellow'))
-                    continue
-        else:
-            if int(imgsizer[0]) > sizetarg or int(imgsizer[1]) > sizetarg:
-                file_move(targetdir, i, 'Resizeble_' + str(sizetarg),
-                          'To Resizeble_.../')
-
+    for d in paths:
+        if len(list(d.iterdir())) == 0:
+            d.rmdir()
+        
 
 if __name__ == "__main__":
-    args = sys.argv
-    main(OPTIONS, args)
+    main()
     print('done')
