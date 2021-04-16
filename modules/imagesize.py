@@ -108,7 +108,7 @@ def argument_parser(*args):
         '_____________________________________________\n\n')
     parser.add_argument(
         '-msize', dest='fsize_min',
-        default="150K",
+        default="100K",
         help="min filesize to process. (B | K | M) (K=2^10)")
     parser.add_argument(
         '-percent', dest='percentage',
@@ -413,7 +413,8 @@ def img_save(
     # INPUT -- PNG
     elif i_ext == 'png':
         if ext == 'jpeg':
-            img.img = img.img.convert('RGB')
+            if "A" in img.img.getbands():
+                img.img = img.img.convert('RGB')
             img.img.save(out_file, ext, **kwargs)
         elif ext == 'jxl':
             out_file = save_jxl(img, i_ext, **kwargs, input2png=processed, slow=slow_enc)

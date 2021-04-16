@@ -9,7 +9,6 @@ import shutil
 import subprocess
 import argparse
 from argparse import RawTextHelpFormatter
-
 # getting image size
 from PIL import Image
 # video creation
@@ -58,6 +57,7 @@ The resized images to a smaller size, the original image names, a rename script 
     if img_mode and dir_mode:
         print('Error, dirs and images passd as input')
         sys.exit()
+    files = sorted(files)
     if img_mode:
         for f in files:
             print(f)
@@ -90,29 +90,68 @@ def image2video(in_files, args, dimensions=None):
     print('\n\n\n')
 
     vformat = 0
+
     if args.format == 'mp4':
         ffmpegarg = {"c:v": "libx264",
-                     "crf": args.crf, "preset": "veryslow",
+                     "pix_fmt": "yuv444p",
+                     "preset": "veryslow",
                      "tune": "animation", "deblock": "-3:-3"}
-    elif args.format == 'apng':
-        ffmpegarg = {}
-    elif args.format == 'vp9':
-        ffmpegarg = {"c:v": "libvpx-vp9",
-                     "crf": args.crf, "b:v": 0, "pix_fmt": "yuv444p", }
-        vformat = 'webm'
-    elif args.format == 'av1-aom':
-        ffmpegarg = {"c:v": "libaom-av1",
-                     "cpu-used": 4, "tiles": "4x1", "strict": -2}  # "row-mt": 1
+        if args.bitrate_video:
+            ffmpegarg["b:v"] = args.bitrate_video
+        else:
+            ffmpegarg["crf"] = args.crf
+
+    # At -crf 18 x265 is slightly better
+    if args.format == 'x265':
+        ffmpegarg = {"c:v": "libx265",
+                     "pix_fmt": "yuv444p",
+                     "preset": "slow",
+                     "x265-params": "bframes=8:psy-rd=1:aq-mode=3:aq-strength=0.8:deblock=-3,-3",
+                     "tune": "animation"}
         if args.bitrate_video:
             ffmpegarg["b:v"] = args.bitrate_video
         else:
             ffmpegarg["crf"] = args.crf
         vformat = 'mp4'
+
+    elif args.format == 'apng':
+        ffmpegarg = {}
+
+    elif args.format == 'vp9':
+        ffmpegarg = {"c:v": "libvpx-vp9",
+                     "crf": args.crf, "b:v": 0, "pix_fmt": "yuv444p", }
+        vformat = 'webm'
+
+    elif args.format == 'av1-aom':
+        ffmpegarg = {"c:v": "libaom-av1",
+                     "cpu-used": 4, "tiles": "4x2", "strict": -2}  # "row-mt": 1
+        if args.bitrate_video:
+            ffmpegarg["b:v"] = "0"
+            ffmpegarg["b:v"] = args.bitrate_video
+        else:
+            ffmpegarg["crf"] = args.crf
+        vformat = 'mp4'
+
+    elif args.format == 'av1-svt':
+        ffmpegarg = {"c:v": "libsvtav1",
+                     "profile": "1",
+                     #"pix_fmt": "yuv444p", TODO
+                     # "rc": 0,
+                     # "preset": 4,
+                     "tile_rows": 2, "tile_columns": 1, "strict": -2}
+        if args.bitrate_video:
+            ffmpegarg["b:v"] = "0"
+            ffmpegarg["b:v"] = args.bitrate_video
+        else:
+            ffmpegarg["qp"] = args.crf
+        vformat = 'mp4'
+
+    # qp 36-38 reduced noise, but quality is good
     elif args.format == 'av1-rav1e':
         ffmpegarg = {"c:v": "librav1e",
-                     "tiles": 4, "strict": -2}
+                     "tiles": 8, "strict": -2}
         if args.bitrate_video:
-            ffmpegarg["b:v"] = str(args.bitrate_video)
+            ffmpegarg["b:v"] = args.bitrate_video
         else:
             ffmpegarg["qp"] = args.crf
         vformat = 'mp4'
@@ -229,10 +268,10 @@ done
         for i in inv_resize_dict.items():
             f.write('mogrify ' +
                     ' -gravity Center' +
-                    ' -quality 95' +
-                    # TODO Lossles images -> resize -> lossy
+                    # ' -quality 95' +
+                    # TODO? Lossles images -> resize -> lossy
                     ' -extent ' + str(i[0][0])+'x'+str(i[0][1])+'! ' +
-                    " ".join(map(lambda x: '"' + ("img{:03d}.jpg")
+                    " ".join(map(lambda x: '"' + ("img{:03d}.png")
                                  .format(img_list.index(x) + 1) + '"', i[1]))
                     + ' ; '
                     )
