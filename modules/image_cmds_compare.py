@@ -78,11 +78,16 @@ def parse_args(*args):
     )
     parser.add_argument(
         '-o', dest="out_dir", type=str,
-        default=str('./test'),
-        help="output dir \n    (default: %(default)s)")
+        help="output dir \n    (default: %(default)s)",
+        default=str('./test'))
     parser.add_argument(
-        '-c', dest="cmds", nargs='+', required=True
+        '-c', dest="cmds", nargs='+', required=True,
+        help=f"supported pil cmds: {[i for i in CMD_ARGS_ALIASES['pil']]}, example: 'pil:jpg:q90'\n" + \
+            "example Jpeg XL encoding: 'cjxl:-d 1 -s 7'"
     )
+    parser.add_argument('-t', '--tolerance', type=int,
+                        help="Next command filesize tolerance\n    (default: %(default)s)",
+                        default=15)
     args = parser.parse_args(*args)
     return args
 
@@ -104,15 +109,18 @@ def main(*args):
     Path.mkdir(Path(args.out_dir), exist_ok=True)
 
     pool = Pool()
-    for i in input_dir_images:
+    res_cmds_count = {}
+    for i in sorted(input_dir_images):
         print(f"Image: {i}")
         img = load_image(i, args)
-        process_image(img, args)
-        pool.apply_async(
-            std_wrapper, [('image_process', (img, args))],
-            callback=collect_result)
+        process_image(img, args, res_cmds_count=res_cmds_count)
+        # pool.apply_async(
+        #     std_wrapper, [('image_process', (img, args))],
+        #     callback=collect_result)
     pool.close()
     pool.join()
+
+    print(res_cmds_count)
 
 
 def load_image(path, args):
@@ -178,7 +186,7 @@ class ImageBuffer():
             buffer.close()
 
 
-def process_image(img, args):
+def process_image(img, args, res_cmds_count={}):
     """Get input image path, generate output image path with format of best of cmd's."""
     enc_img_buffers = []
     for cmd in args.cmds:
@@ -200,9 +208,16 @@ def process_image(img, args):
             f"{bite2size(img_filesize)} --> {bite2size(buff_filesize)}    " +
             f"{percentage_of_original}%", attrs=['underline']))
 
-        if m == 0 or buff_filesize < 0.9 * m[1]:
+        tolerance = args.tolerance # %
+        # First commands has value tolerance over next ones
+        if m == 0 or buff_filesize < (1 - tolerance*0.01) * m[1]:
             if buff_filesize != 0:
                 m = buff, buff_filesize
+
+    if m[0].cmd not in res_cmds_count:
+        res_cmds_count[m[0].cmd] = 1
+    else:
+        res_cmds_count[m[0].cmd] += 1
 
     if (float(100 * m[1] / img_filesize) < PERCENTAGE) or PERCENTAGE == 0:
         with open(args.out_dir + "/" + Path(img.filename).stem + "." + m[0].ext, "wb") as save_file:

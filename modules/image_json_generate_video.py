@@ -23,9 +23,9 @@ def main(*args):
     parser.add_argument('path', nargs='?',
                         help='Dir with zips')
     parser.add_argument('-crf', dest='crf', type=int, default=12,
-                        help='Specify video CRF')
+                        help='Specify video CRF  (default: %(default)s)')
     parser.add_argument('-c:f', dest='format', default='mp4',
-                        help='Specify video format for ffmpeg')
+                        help='Specify video extension for ffmpeg  (default: %(default)s)')
     args = parser.parse_args(*args)
     if args.path:
         print('by argument')

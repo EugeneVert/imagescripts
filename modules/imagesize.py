@@ -79,10 +79,14 @@ def argument_parser(*args):
     parser.add_argument(
         '-c:f', dest='convert_format', type=str,
         help="set output format for all files")
-    parser.add_argument(
-        '-c:q', dest='convert_quality', type=float,
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        '-c:q', dest='convert_quality', type=float, action="store",
         default=int(92),
         help='quality setting \n    (default: %(default)s)')
+    group.add_argument(
+        '-c:d', dest='convert_distance_jxl', type=float, action="store",
+        help='distance setting for Jpeg XL')
     parser.add_argument(
         '-l', '--lossless', action='store_true',
         help="keep png lossless")
@@ -135,6 +139,8 @@ def argument_parser(*args):
         help="count of procs")
 
     args = parser.parse_args(*args)
+    if args.convert_distance_jxl:
+        args.convert_quality = 100 + (0.1 - args.convert_distance_jxl) / 0.09
 
     PERCENTAGE = int(args.percentage)
 

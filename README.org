@@ -29,7 +29,7 @@ imagescripts.py size ./
 #+end_src
 Optimize without resize
 #+begin_src sh
-imagescripts.py size ./ -resize 0
+imagescripts.py size ./ -r 0
 #+end_src
 Save only optimized images < 70% of original, keep png files
 #+begin_src sh
@@ -37,18 +37,19 @@ imagescripts.py size ./ -percent 70 -kpng
 #+end_src
 Try to convert all images > 200KiB to lossless webp, applying blur and shaprening, move original images to ./originals directory, output optimized images to ./optimized
 #+begin_src sh
-imagescripts.py size -c:f webp -lossless -blur 1 -sharpen 1.2 -msize 200K -mvo originals -o optimized
+imagescripts.py size -c:f webp --lossless -blur 1 -sharpen 1.2 -msize 200K -mvo originals -o optimized
 #+end_src
 ** Gallery organisation (find module)
   | Function                                  | Submodule             |
   |-------------------------------------------+-----------------------|
+  | Find images with BPP < or > target        | find\under{}bpp       |
   | Find Resizable images with png separation | find\under{}resizable |
   | Find Images with same dimensions          | find\under{}samesize  |
   | Find Simmilar(by average hash)            | find\under{}simmilar  |
 
 ** Image to video converters (generate module)
 *** Generate video
-Generate a video from a set of images. The Size of the video based on the average images size.
+Generate a video from a set of images. The Dimensions of the video based on the average images dimensions.
 
 Creates a script for imagemagick to convert the video back to the images.
 

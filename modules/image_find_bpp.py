@@ -52,7 +52,6 @@ def sort_by_bpp(image, path_bpp, args):
         if bpp > args.b:
             print(f"Move to {path_bpp.name}")
             filename.rename(path_bpp / filename.name)
-            
 
 
 def main(*args):
