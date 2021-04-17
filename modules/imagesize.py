@@ -15,7 +15,7 @@ from PIL import Image
 # from PIL import ImageStat
 from PIL.ImageFilter import GaussianBlur, UnsharpMask
 
-from imagescripts_utils import size2bytes, bite2size
+from imagescripts_utils import size2bytes, bite2size, image_has_transparency
 
 NONIMAGES_DIR_NAME = './mv'
 OLDIMAGES_DIR_NAME = 'old'
@@ -47,6 +47,11 @@ ENC_SETTINGS = {
         "any": {
             "quality": "$quality",
             "lossless": "$lossless"
+        }
+    },
+    "avif": {
+        "any": {
+            "quality": "$quality",
         }
     },
     "webp_lossless": {
@@ -397,8 +402,20 @@ def img_save(
     if ext == 'jpg':
         ext = 'jpeg'
 
+    # OUTPUT -- JXL
+    if ext == 'jxl':
+        out_file = save_jxl(img, i_ext, **kwargs,
+                            input2png=processed, slow=slow_enc)
+    
+    elif ext == 'avif':
+        if lossless:
+            print("Lossless avif TODO")
+        else:
+            out_file = save_avif(img, i_ext, **kwargs,
+                                 input2png=processed, slow=slow_enc)
+    
     # INPUT -- JPEG
-    if i_ext == 'jpg':
+    elif i_ext == 'jpg':
         if ext == 'jpeg':
             try:
                 img.img.save(out_file, ext, **kwargs)
@@ -406,8 +423,6 @@ def img_save(
                 print("Can't keep JPG subsampling the same")
                 kwargs.pop("subsampling", None)
                 img.img.save(out_file, ext, **kwargs)
-        elif ext == 'jxl':
-            out_file = save_jxl(img, i_ext, **kwargs, input2png=processed, slow=slow_enc)
         elif ext == 'png':
             # reduce color palette
             # img.img = img.img.convert(mode='P', palette=Image.ADAPTIVE)
@@ -422,17 +437,12 @@ def img_save(
             if "A" in img.img.getbands():
                 img.img = img.img.convert('RGB')
             img.img.save(out_file, ext, **kwargs)
-        elif ext == 'jxl':
-            out_file = save_jxl(img, i_ext, **kwargs, input2png=processed, slow=slow_enc)
         else:
             img.img.save(out_file, ext, **kwargs)
 
     # INPUT -- WEBP
     elif i_ext == 'webp':
-        if ext == 'jxl':
-            out_file = save_jxl(img, i_ext, **kwargs, input2png=processed, slow=slow_enc)
-        else:
-            img.img.save(out_file, ext, **kwargs)
+        img.img.save(out_file, ext, **kwargs)
 
     # compare i/o sizes
     out_file_size = out_file.tell()
@@ -506,6 +516,38 @@ def save_jxl(img: Img, input_extension, quality=93, lossless=False,
     return out
 
 
+def save_avif(img: Img, input_extension, quality=93, lossless=False,
+              input2png=False, slow=False):
+    temp = 0
+    bufer = tempfile.NamedTemporaryFile(prefix="avif_")
+    # cjxl does't support webp as input
+    if input2png or input_extension == "webp":
+        # save as temp png
+        temp = tempfile.NamedTemporaryFile(prefix="png_")
+        img.img.save(temp, "png")
+        cmd = "avifenc " + temp.name
+
+    else:
+        cmd = 'avifenc "' + img.name.as_posix() + '"'
+
+    cmd += f" --min {quality} --max {quality + 1}"
+    if "A" not in img.img.getbands():
+        cmd += " -a aq-mode=1 -a enable-chroma-deltaq=1"
+
+    cmd += " " + bufer.name
+    print(cmd)
+    proc = subprocess.Popen(cmd, shell=True,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # print((proc.communicate()[1]).decode("utf-8"))
+    proc.communicate()
+    if temp:
+        temp.close()
+
+    out = BytesIO(bufer.read())
+    out.read()
+    bufer.close()
+    return out
+
 # https://stackoverflow.com/questions/20068945/detect-if-image-is-color-grayscale-or-black-and-white-with-python-pil
 # def image_iscolorfull(image, thumb_size=40, MSE_cutoff=22, adjust_color_bias=True):
 #     pil_img = image
@@ -532,12 +574,6 @@ def save_jxl(img: Img, input_extension, quality=93, lossless=False,
 #     else:
 #         print("Don't know...", bands)
 #         return "unknown"
-
-
-def image_has_transparency(image: Image.Image):
-    if len(image.getbands()) < 4:  # if 'A' not in image.getbands()
-        return False
-    return image.getextrema()[3][0] < 255-20
 
 
 def nonimages_mv(i, output_dir):

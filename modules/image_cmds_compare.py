@@ -1,9 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S python3 -u
 
 import os
 import argparse
 # import shutil
-import re
 import subprocess
 import tempfile
 
@@ -14,6 +13,7 @@ from pathlib import Path
 from PIL import Image
 from termcolor import colored
 
+from imagescripts_utils import bite2size, image_has_transparency
 
 ENC_SETTINGS = {
     "png": {
@@ -33,12 +33,6 @@ ENC_SETTINGS = {
             "subsampling": "keep",
             "optimize": True,
             "progressive": True
-        }
-    },
-    "jxl": {
-        "any": {
-            "quality": "$quality",
-            "lossless": "$lossless"
         }
     },
     "webp-l": {
@@ -82,12 +76,14 @@ def parse_args(*args):
         default=str('./test'))
     parser.add_argument(
         '-c', dest="cmds", nargs='+', required=True,
-        help=f"supported pil cmds: {[i for i in CMD_ARGS_ALIASES['pil']]}, example: 'pil:jpg:q90'\n" + \
-            "example Jpeg XL encoding: 'cjxl:-d 1 -s 7'"
+        help=f"supported pil cmds: {[i for i in CMD_ARGS_ALIASES['pil']]}, example: 'pil:jpg:q90'\n" +
+        "example Jpeg XL cjxl encoding: 'cjxl:-d 0.3 -s 8'\n" +
+        "example AVIF avifenc encoding: 'avif: --min 7 --max 8 -a aq-mode=1 -a enable-chroma-deltaq=1'"
     )
-    parser.add_argument('-t', '--tolerance', type=int,
-                        help="Next command filesize tolerance\n    (default: %(default)s)",
-                        default=15)
+    parser.add_argument(
+        '-t', '--tolerance', type=int,
+        help="Next command filesize tolerance\n    (default: %(default)s)",
+        default=30)
     args = parser.parse_args(*args)
     return args
 
@@ -111,6 +107,7 @@ def main(*args):
     pool = Pool()
     res_cmds_count = {}
     for i in sorted(input_dir_images):
+        print()
         print(f"Image: {i}")
         img = load_image(i, args)
         process_image(img, args, res_cmds_count=res_cmds_count)
@@ -168,6 +165,7 @@ class ImageBuffer():
             if ext == "jpeg":
                 ext = "jpg"
             self.ext = ext
+
         if cmd_args[0] == "cjxl":
             buffer = tempfile.NamedTemporaryFile(prefix="jxl_")
             buffer
@@ -185,6 +183,33 @@ class ImageBuffer():
             self.ext = "jxl"
             buffer.close()
 
+        if cmd_args[0] == "avif":
+            cmd_args_index_param = 1
+            if cmd_args[1] == "noalpha" and image_has_transparency(img):
+                return
+            else:
+                cmd_args_index_param = 2
+            if cmd_args[1] == "alpha" and not image_has_transparency(img):
+                return
+            else:
+                cmd_args_index_param = 2
+
+            buffer = tempfile.NamedTemporaryFile(prefix="avif_")
+            buffer
+            cmd = 'avifenc "' + img.filename + '" '
+            for i in cmd_args[cmd_args_index_param:]:
+                cmd += i + " "
+            cmd += buffer.name
+            print(cmd)
+            proc = subprocess.Popen(cmd, shell=True,
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            # print((proc.communicate()[1]).decode("utf-8"))
+            proc.communicate()
+            self.image = BytesIO(buffer.read())
+            self.image.read()
+            self.ext = "avif"
+            buffer.close()
+
 
 def process_image(img, args, res_cmds_count={}):
     """Get input image path, generate output image path with format of best of cmd's."""
@@ -195,20 +220,22 @@ def process_image(img, args, res_cmds_count={}):
         enc_img_buffers.append(buff)
 
     img_filesize = os.path.getsize(img.filename)
+    px_count = img.size[0] * img.size[1]
     m = 0
 
     for buff in enc_img_buffers:
         buff_filesize = buff.get_size()
+        buff_bpp = round(buff_filesize*8/px_count, 2)
         percentage_of_original = "{:.2f}".format(
             100 * buff_filesize / img_filesize)
 
         print(buff.cmd)
         # print i/o size in human-readable format
         print(colored(
-            f"{bite2size(img_filesize)} --> {bite2size(buff_filesize)}    " +
+            f"{bite2size(img_filesize)} --> {bite2size(buff_filesize)} {buff_bpp}bpp   " +
             f"{percentage_of_original}%", attrs=['underline']))
 
-        tolerance = args.tolerance # %
+        tolerance = args.tolerance  # %
         # First commands has value tolerance over next ones
         if m == 0 or buff_filesize < (1 - tolerance*0.01) * m[1]:
             if buff_filesize != 0:
@@ -223,24 +250,6 @@ def process_image(img, args, res_cmds_count={}):
         with open(args.out_dir + "/" + Path(img.filename).stem + "." + m[0].ext, "wb") as save_file:
             print("Saving buffer " + m[0].cmd)
             save_file.write(m[0].image.getbuffer())
-
-
-def size2bytes(size):
-    size_name = ("B", "K", "M", "G")
-    size.upper()
-    size = re.split(r'(\d+)', size)
-    num, unit = int(size[1]), size[2]
-    idx = size_name.index(unit)
-    factor = 1024 ** idx
-    return num * factor
-
-
-def bite2size(num, suffix='iB'):
-    for unit in ['', 'K', 'M', 'G']:
-        if abs(num) < 1024.0:
-            return "%3.1f%s%s" % (num, unit, suffix)
-        num /= 1024.0
-    return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
 def collect_result(result):

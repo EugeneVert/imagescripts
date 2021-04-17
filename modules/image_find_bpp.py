@@ -22,9 +22,9 @@ def argument_parser(*args):
         help="dir with images")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("-l", type=float,
-                        help="Move images with bpp < BPP")
+                       help="Move images with bpp < BPP")
     group.add_argument("-b", type=float,
-                        help="Move images with bpp > BPP")
+                       help="Move images with bpp > BPP")
     parser.add_argument("-mv", action="store_true",
                         help="Move non-images (not png, jpg, webp)")
     args = parser.parse_args(*args)

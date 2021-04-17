@@ -7,6 +7,12 @@ import os
 import re
 
 
+def image_has_transparency(image):
+    if len(image.getbands()) < 4:  # if 'A' not in image.getbands()
+        return False
+    return image.getextrema()[3][0] < 255
+
+
 def size2bytes(size):
     size_name = ("B", "K", "M", "G")
     size.upper()
