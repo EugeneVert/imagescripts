@@ -1,13 +1,19 @@
 #!/usr/bin/env -S python3 -u
+"""
+Example:
+image_cmds_compare.py -c \
+"cjxl:-m -s 8" \
+"avif:noalpha:-d 10 --min 7 --max 8 -a aq-mode=1 -a enable-chroma-deltaq=1" \
+"avif:alpha:--min 7 --max 8" \
+-i . | tee -a cmds.txt
+"""
 
-import os
 import argparse
 # import shutil
 import subprocess
 import tempfile
 
 from io import BytesIO
-from multiprocessing import Pool
 from pathlib import Path
 
 from PIL import Image
@@ -104,18 +110,12 @@ def main(*args):
 
     Path.mkdir(Path(args.out_dir), exist_ok=True)
 
-    pool = Pool()
     res_cmds_count = {}
     for i in sorted(input_dir_images):
         print()
         print(f"Image: {i}")
         img = load_image(i, args)
         process_image(img, args, res_cmds_count=res_cmds_count)
-        # pool.apply_async(
-        #     std_wrapper, [('image_process', (img, args))],
-        #     callback=collect_result)
-    pool.close()
-    pool.join()
 
     print(res_cmds_count)
 
@@ -168,7 +168,6 @@ class ImageBuffer():
 
         if cmd_args[0] == "cjxl":
             buffer = tempfile.NamedTemporaryFile(prefix="jxl_")
-            buffer
             cmd = 'cjxl "' + img.filename + '" '
             for i in cmd_args[1:]:
                 cmd += i + " "
@@ -219,7 +218,7 @@ def process_image(img, args, res_cmds_count={}):
         buff.image_generate(img)
         enc_img_buffers.append(buff)
 
-    img_filesize = os.path.getsize(img.filename)
+    img_filesize = Path(img.filename).stat().st_size
     px_count = img.size[0] * img.size[1]
     m = 0
 
@@ -229,7 +228,7 @@ def process_image(img, args, res_cmds_count={}):
         percentage_of_original = "{:.2f}".format(
             100 * buff_filesize / img_filesize)
 
-        print(buff.cmd)
+        # print(buff.cmd)
         # print i/o size in human-readable format
         print(colored(
             f"{bite2size(img_filesize)} --> {bite2size(buff_filesize)} {buff_bpp}bpp   " +
@@ -250,33 +249,6 @@ def process_image(img, args, res_cmds_count={}):
         with open(args.out_dir + "/" + Path(img.filename).stem + "." + m[0].ext, "wb") as save_file:
             print("Saving buffer " + m[0].cmd)
             save_file.write(m[0].image.getbuffer())
-
-
-def collect_result(result):
-    if result:
-        print(result[0])
-        if result[1]:
-            print(result[1])
-
-
-def std_wrapper(args):
-    from io import StringIO
-    import sys
-    sys.stdout, sys.stderr = StringIO(), StringIO()  # replace stdout/err with our buffers
-    # args is a list packed as: [0] process function name; [1] args; [2] kwargs; lets unpack:
-    process_name = args[0]
-    process_args = args[1] if len(args) > 1 else []
-    process_kwargs = args[2] if len(args) > 2 else {}
-    # get our method from its name, assuming global namespace of the current module/script
-    process = globals()[process_name]
-    try:
-        response = process(*process_args, **process_kwargs)  # call our process function
-    except Exception as e:
-        print(e)
-    # rewind our buffers:
-    sys.stdout.seek(0)
-    sys.stderr.seek(0)
-    return sys.stdout.read(), sys.stderr.read()
 
 
 if __name__ == '__main__':

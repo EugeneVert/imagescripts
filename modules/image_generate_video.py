@@ -2,6 +2,11 @@
 #
 # 2021 Eugene Vert; eugene.a.vert@gmail.com
 
+"""
+Example:
+imagescripts.py generate video -crf 8 -c:f av1-rav1e *.jpg  # NOTE, "crf" for rav1e and svtav1 setted to "qp"
+"""
+
 import os
 import sys
 import glob

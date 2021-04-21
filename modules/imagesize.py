@@ -530,7 +530,7 @@ def save_avif(img: Img, input_extension, quality=93, lossless=False,
     else:
         cmd = 'avifenc "' + img.name.as_posix() + '"'
 
-    cmd += f" --min {quality} --max {quality + 1}"
+    cmd += f" -d 10 --min {quality} --max {quality + 1}"
     if "A" not in img.img.getbands():
         cmd += " -a aq-mode=1 -a enable-chroma-deltaq=1"
 
