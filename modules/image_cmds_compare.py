@@ -90,6 +90,10 @@ def parse_args(*args):
         '-t', '--tolerance', type=int,
         help="Next command filesize tolerance\n    (default: %(default)s)",
         default=30)
+    parser.add_argument(
+        '--save', dest="save_all", action="store_true",
+        help="Don't compare, just save output files",
+    )
     args = parser.parse_args(*args)
     return args
 
@@ -222,7 +226,7 @@ def process_image(img, args, res_cmds_count={}):
     px_count = img.size[0] * img.size[1]
     m = 0
 
-    for buff in enc_img_buffers:
+    for i, buff in enumerate(enc_img_buffers):
         buff_filesize = buff.get_size()
         buff_bpp = round(buff_filesize*8/px_count, 2)
         percentage_of_original = "{:.2f}".format(
@@ -234,12 +238,21 @@ def process_image(img, args, res_cmds_count={}):
             f"{bite2size(img_filesize)} --> {bite2size(buff_filesize)} {buff_bpp}bpp   " +
             f"{percentage_of_original}%", attrs=['underline']))
 
+        if args.save_all:
+            if buff_filesize == 0:
+                continue
+            with open(args.out_dir + "/" + Path(img.filename).stem + "_" + str(i) + "." + buff.ext, "wb") as save_file:
+                save_file.write(buff.image.getbuffer())
+                continue
+
         tolerance = args.tolerance  # %
         # First commands has value tolerance over next ones
         if m == 0 or buff_filesize < (1 - tolerance*0.01) * m[1]:
             if buff_filesize != 0:
                 m = buff, buff_filesize
 
+    if args.save_all:
+        return
     if m[0].cmd not in res_cmds_count:
         res_cmds_count[m[0].cmd] = 1
     else:

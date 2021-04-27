@@ -17,7 +17,7 @@ parser_generate = subparser.add_parser('generate', help='generators', add_help=F
 parser_generate.add_argument('subtask', choices=['video', 'fromjson'])
 parser_generate.set_defaults(task='generate')
 parser_find = subparser.add_parser('find', help='sort files', add_help=False)
-parser_find.add_argument('subtask', choices=['bpp', 'resizable', 'samesize', 'simmilar'])
+parser_find.add_argument('subtask', choices=['bpp', 'bnw', 'resizable', 'samesize', 'simmilar'])
 parser_find.set_defaults(task='find')
 args, _ = parser.parse_known_args()
 sys.path.append(sys.path[0] + '/modules/')
@@ -40,6 +40,9 @@ elif task == 'find':
     if subtask == 'bpp':
         import modules.image_find_bpp as bpp
         bpp.main(sys.argv[3:])
+    if subtask == 'bnw':
+        import modules.image_find_blacknwhite as bnw
+        bnw.main(sys.argv[3:])
     if subtask == 'resizable':
         import modules.image_find_resizable as resizable
         resizable.main(sys.argv[3:])

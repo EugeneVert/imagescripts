@@ -2,7 +2,7 @@
 #
 # 2021 Eugene Vert; eugene.a.vert@gmail.com
 
-import os, argparse, shutil, re
+import os, argparse, shutil
 import subprocess
 import tempfile
 
@@ -68,6 +68,7 @@ ENC_SETTINGS = {
         }
     }
 }
+
 
 def argument_parser(*args):
     global PERCENTAGE
@@ -144,6 +145,8 @@ def argument_parser(*args):
         help="count of procs")
 
     args = parser.parse_args(*args)
+
+    # jxl distance to quality NOTE (actually works only for d < ~~6.310)
     if args.convert_distance_jxl:
         args.convert_quality = 100 + (0.1 - args.convert_distance_jxl) / 0.09
 
@@ -180,7 +183,8 @@ def main(*args):
 
     images_process(input_dir_images, input_dir, args)
 
-    if not os.listdir(nonimages_dir):
+    # remove dir if empty
+    if not any(nonimages_dir.iterdir()):
         Path.rmdir(nonimages_dir)
 
 
@@ -406,14 +410,14 @@ def img_save(
     if ext == 'jxl':
         out_file = save_jxl(img, i_ext, **kwargs,
                             input2png=processed, slow=slow_enc)
-    
+
     elif ext == 'avif':
         if lossless:
             print("Lossless avif TODO")
         else:
             out_file = save_avif(img, i_ext, **kwargs,
                                  input2png=processed, slow=slow_enc)
-    
+
     # INPUT -- JPEG
     elif i_ext == 'jpg':
         if ext == 'jpeg':
@@ -478,8 +482,9 @@ def save_jxl(img: Img, input_extension, quality=93, lossless=False,
              input2png=False, slow=False):
     temp = 0
     bufer = tempfile.NamedTemporaryFile(prefix="jxl_")
-    # cjxl does't support webp as input
-    if input2png or input_extension == "webp":
+    # cjxl does't support webp and tiff as input
+    # -- the input can be PNG, APNG, GIF, JPEG, EXR, PPM, PFM, or PGX
+    if input2png or input_extension == ("webp", "tiff"):
         # save as temp png
         temp = tempfile.NamedTemporaryFile(prefix="png_")
         img.img.save(temp, "png")
@@ -491,6 +496,7 @@ def save_jxl(img: Img, input_extension, quality=93, lossless=False,
     if lossless:
         # Jpg can be transcoded losslessly, no need of modular mode
         if input_extension == "jpg":
+            # TODO a bit missleading var name, change back to "processed" ?
             if not input2png:
                 cmd += " -s 8"
                 print("jpg transcode to jxl")
@@ -498,8 +504,11 @@ def save_jxl(img: Img, input_extension, quality=93, lossless=False,
                 print(colored("PROCESSED JPG, NOT LOSSLESS", "red"))
                 cmd += f" -q {quality}"
         else:
+            # modular mode settings
+            # speed 9 (-s 9), look to outher chanels (-E 3)
             cmd += " -m -s 9 -E 3" if slow else " -m -s 8"
     else:
+        # VarDCT quality
         cmd += f" -q {quality}"
     cmd += " " + bufer.name
     print(cmd)
@@ -520,8 +529,9 @@ def save_avif(img: Img, input_extension, quality=93, lossless=False,
               input2png=False, slow=False):
     temp = 0
     bufer = tempfile.NamedTemporaryFile(prefix="avif_")
-    # cjxl does't support webp as input
-    if input2png or input_extension == "webp":
+    # avifenc does't support webp and tiff as input
+    # -- avifenc [options] input.[jpg|jpeg|png|y4m] output.avif
+    if input2png or input_extension in ("webp", "tiff"):
         # save as temp png
         temp = tempfile.NamedTemporaryFile(prefix="png_")
         img.img.save(temp, "png")
@@ -530,7 +540,9 @@ def save_avif(img: Img, input_extension, quality=93, lossless=False,
     else:
         cmd = 'avifenc "' + img.name.as_posix() + '"'
 
-    cmd += f" -d 10 --min {quality} --max {quality + 1}"
+    # using 10-bit and yuv420 for optimized main av1 profile,
+    # setting min and max quantizer for color  (0-63, where 0 is lossless)
+    cmd += f" -d 10 -y 420 --min {quality} --max {quality + 1}"
     if "A" not in img.img.getbands():
         cmd += " -a aq-mode=1 -a enable-chroma-deltaq=1"
 
@@ -547,33 +559,6 @@ def save_avif(img: Img, input_extension, quality=93, lossless=False,
     out.read()
     bufer.close()
     return out
-
-# https://stackoverflow.com/questions/20068945/detect-if-image-is-color-grayscale-or-black-and-white-with-python-pil
-# def image_iscolorfull(image, thumb_size=40, MSE_cutoff=22, adjust_color_bias=True):
-#     pil_img = image
-#     bands = pil_img.getbands()
-#     if bands == ('R', 'G', 'B') or bands == ('R', 'G', 'B', 'A'):
-#         thumb = pil_img.resize((thumb_size, thumb_size))
-#         SSE, bias = 0, [0,0,0]
-#         if adjust_color_bias:
-#             bias = ImageStat.Stat(thumb).mean[:3]
-#             bias = [b - sum(bias)/3 for b in bias]
-#         for pixel in thumb.getdata():
-#             mu = sum(pixel)/3
-#             SSE += sum((pixel[i] - mu - bias[i])*(pixel[i] - mu - bias[i]) for i in [0, 1, 2])
-#         MSE = float(SSE)/(thumb_size*thumb_size)
-#         if MSE <= MSE_cutoff:
-#             print("Grayscale")
-#             return "grayscale"
-#         else:
-#             return "color"
-#         print("( MSE=", MSE, ")")
-#     elif len(bands) == 1:
-#         print("Black and white", bands)
-#         return "blackandwhite"
-#     else:
-#         print("Don't know...", bands)
-#         return "unknown"
 
 
 def nonimages_mv(i, output_dir):
