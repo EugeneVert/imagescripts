@@ -88,16 +88,17 @@ def argument_parser(*args):
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         '-c:q', dest='convert_quality', type=float, action="store",
-        default=int(92),
+        default=int(92.777),  # (jxl 'distance' 0.75 converted to 'quality')
         help='quality setting \n    (default: %(default)s)')
     group.add_argument(
         '-c:d', dest='convert_distance_jxl', type=float, action="store",
-        help='distance setting for Jpeg XL')
+        help='distance setting of Jpeg XL (will be converted to c:q)')
     parser.add_argument(
         '-l', '--lossless', action='store_true',
         help="keep png lossless")
-    parser.add_argument('-slow', action="store_true",
-                        help="Slow lossless jxl encode")
+    parser.add_argument(
+        '-slow', action="store_true",
+        help="Slow lossless jxl encode")
     parser.add_argument(
         '-ask', action='store_true',
         help='ask resize for each resizable')
