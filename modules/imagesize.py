@@ -543,9 +543,9 @@ def save_avif(img: Img, input_extension, quality=93, lossless=False,
 
     # using 10-bit and yuv420 for optimized main av1 profile,
     # setting min and max quantizer for color  (0-63, where 0 is lossless)
-    cmd += f" -d 10 -y 420 --min {quality} --max {quality + 1}"
+    cmd += f" -d 10 -y 444 --min {quality} --max {quality + 2}"
     if "A" not in img.img.getbands():
-        cmd += " -a aq-mode=1 -a enable-chroma-deltaq=1"
+        cmd += " -a enable-chroma-deltaq=1"
 
     cmd += " " + bufer.name
     print(cmd)
