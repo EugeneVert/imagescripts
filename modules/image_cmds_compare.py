@@ -12,6 +12,7 @@ import argparse
 # import shutil
 import subprocess
 import tempfile
+import time
 
 from io import BytesIO
 from pathlib import Path
@@ -133,12 +134,14 @@ class ImageBuffer():
         self.image = BytesIO()
         self.cmd = cmd
         self.ext = ""
+        self.ex_time = 0
 
     def get_size(self):
         return self.image.tell()
 
     def image_generate(self, img):
         cmd_args = self.cmd.split(":")
+        time_start = time.time()
         if cmd_args[0] == "pil":
             ext = cmd_args[1]
             i_ext = img.format.lower()
@@ -212,6 +215,7 @@ class ImageBuffer():
             self.image.read()
             self.ext = "avif"
             buffer.close()
+        self.ex_time = time.time() - time_start
 
 
 def process_image(img, args, res_cmds_count={}):
@@ -228,14 +232,14 @@ def process_image(img, args, res_cmds_count={}):
 
     for i, buff in enumerate(enc_img_buffers):
         buff_filesize = buff.get_size()
-        buff_bpp = round(buff_filesize*8/px_count, 2)
+        buff_bpp = round(buff_filesize * 8 / px_count, 2)
         percentage_of_original = "{:.2f}".format(
             100 * buff_filesize / img_filesize)
 
         # print(buff.cmd)
         # print i/o size in human-readable format
         print(colored(
-            f"{bite2size(img_filesize)} --> {bite2size(buff_filesize)} {buff_bpp}bpp   " +
+            f"{bite2size(img_filesize)} --> {bite2size(buff_filesize)} {buff_bpp}bpp  {'%.2f' % buff.ex_time}s  " +
             f"{percentage_of_original}%", attrs=['underline']))
 
         if args.save_all:
@@ -253,6 +257,7 @@ def process_image(img, args, res_cmds_count={}):
 
     if args.save_all:
         return
+
     if m[0].cmd not in res_cmds_count:
         res_cmds_count[m[0].cmd] = 1
     else:
