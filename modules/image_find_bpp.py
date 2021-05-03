@@ -15,7 +15,7 @@ NONIMAGES_DIR_NAME = './mv'
 
 def argument_parser(*args):
     parser = argparse.ArgumentParser(
-        description='Reduce images size',
+        description='Find images by bpp',
         formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument(
         'path', nargs='?',

@@ -20,8 +20,8 @@ NONIMAGES_DIR_NAME = './mv'
 
 
 def argument_parser(*args):
-    parser = argparse.ArgumentParser(description="\
-        Find black and white images",
+    parser = argparse.ArgumentParser(
+        description="Find black and white images",
         formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('path', nargs='?',
                         help='Path of a dir.')

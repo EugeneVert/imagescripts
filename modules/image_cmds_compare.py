@@ -1,10 +1,10 @@
 #!/usr/bin/env -S python3 -u
 """
 Example:
-image_cmds_compare.py -c \
+image_cmds_compare.py -t 0 --save -c \
 "cjxl:-m -s 8" \
-"avif:noalpha:-d 10 --min 7 --max 8 -a aq-mode=1 -a enable-chroma-deltaq=1" \
-"avif:alpha:--min 7 --max 8" \
+"avif:noalpha:-d 10 -y 444 --min 9 --max 12 -a enable-chroma-deltaq=1 -j 4" \
+"avif:alpha:-d 10 -y 444 --min 9 --max 12 -j 4" \
 -i . | tee -a cmds.txt
 """
 

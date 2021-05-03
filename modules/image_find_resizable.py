@@ -20,13 +20,14 @@ NONIMAGES_DIR_NAME = './mv'
 
 
 def argument_parser(*args):
-    parser = argparse.ArgumentParser(description="\
-        Find images larger than the specified imagesize",
+    parser = argparse.ArgumentParser(
+        description="Find images larger than the specified imagesize",
         formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('path', nargs='?',
                         help='Path of a dir.')
     parser.add_argument("-s", "--size",
-                        help="move img size px   (default: %(default)s)\n(Note: A4 sizes(px) -- 1240,1754,2480,3508,4960,5953,7016)",
+                        help="move img size px" +
+                             "   (default: %(default)s)\n(Note: A4 sizes(px) -- 1240,1754,2480,3508,4960,5953,7016)",
                         default=3508, type=int)
     parser.add_argument("-p", "--png-sort",
                         help="move png's to different folder",
@@ -134,7 +135,7 @@ def process_files(input_images, args):
     for d in paths:
         if len(list(d.iterdir())) == 0:
             d.rmdir()
-        
+
 
 if __name__ == "__main__":
     main()

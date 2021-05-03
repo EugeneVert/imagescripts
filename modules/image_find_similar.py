@@ -23,6 +23,7 @@ from termcolor import colored
 
 from imagescripts_utils import file_move
 
+
 def main(argv):
     print(argv)
     if len(argv) >= 2:
@@ -42,7 +43,7 @@ def main(argv):
             image_hash = imagehash.average_hash(image)
             image.close()
             img_hash_dict[filepath] = image_hash
-        except:
+        except IOError:
             print("Error, can't open  " + f)
             continue
     print(colored('Path: ' + src_dir, 'yellow'))
@@ -114,14 +115,14 @@ def image_find_simillar(orig, img_hash_dict, _img_hash_dict_2={}, mode=0):
             if hash_diff < 9:
                 img_simillar[ihlist[0]] = ihlist[1]
             else:
-                print("Hash diff " + str(hash_diff) + ">" + "8" +\
-                      '.\nPlease confirm simillarity. Opening images via ' +\
+                print("Hash diff " + str(hash_diff) + ">" + "8" +
+                      '.\nPlease confirm simillarity. Opening images via ' +
                       imageviewer + ':\nOrig: ' + orig[0] + '\n    ' + ihlist[0])
 
-                sp_orig = subprocess.Popen(imageviewer +\
+                sp_orig = subprocess.Popen(imageviewer +
                                            ' "' + orig[0] + '"',
                                            stdout=subprocess.PIPE, shell=True)
-                sp_simi = subprocess.Popen(imageviewer +\
+                sp_simi = subprocess.Popen(imageviewer +
                                            ' "' + ihlist[0] + '"',
                                            stdout=subprocess.PIPE, shell=True)
                 inp_are_simillar = input('Are these images simillar? Y(es)/N(o)/E(xclude)')
@@ -150,11 +151,11 @@ def image_find_simillar(orig, img_hash_dict, _img_hash_dict_2={}, mode=0):
                 sp_orig.kill()
                 sp_simi.kill()
             # hash_diff_list.append(hash_diff)
-    return img_simillar #, hash_diff_list
+    return img_simillar  # , hash_diff_list
 
 
 def images_sort_by_hash(simillars, src_dir):
-    files_sorted = sorted(simillars.items(), key= lambda i: str(i[1]))
+    files_sorted = sorted(simillars.items(), key=lambda i: str(i[1]))
     if not os.path.exists(src_dir + '/out'):
         os.mkdir(src_dir + '/out')
     print([str(x[1]) for x in files_sorted])

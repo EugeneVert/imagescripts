@@ -45,7 +45,7 @@ def images_find_eq_res(files_in_dir, dir_target, img_c_min):
         print('file: ', i)
         try:
             img = Image.open(i)
-        except:
+        except IOError:
             print("can't open open image")
             continue
 

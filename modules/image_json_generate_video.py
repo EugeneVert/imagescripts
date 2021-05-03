@@ -85,7 +85,7 @@ def main(*args):
                     ffmpegarg['preset'] = 'veryslow'
             (
                 ffmpeg
-                .input(demuxerf.name,f='concat', safe=0)
+                .input(demuxerf.name, f='concat', safe=0)
                 .filter('pad', 'ceil(iw/2)*2', 'ceil(ih/2)*2')
                 .output(out_name + '.' + args.format, **ffmpegarg)
                 .run()
