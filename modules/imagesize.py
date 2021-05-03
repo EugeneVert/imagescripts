@@ -381,11 +381,7 @@ def img_save(
     out_file_path = output_path / (img.name.stem + '.' + ext)
     out_file = BytesIO()         # output image buffer
     i_ext = img.name.suffix[1:]  # input image extension
-    # png  -> png, jpg, webp
-    # jpg  -> png, jpg, webp
-    # webp -> png, jpg, webp
-    #
-    #
+
     # get arguments from dict
     kwargs_raw = 0
     if ext == "webp":
@@ -546,6 +542,8 @@ def save_avif(img: Img, input_extension, quality=93, lossless=False,
     cmd += f" -d 10 -y 444 --min {quality} --max {quality + 2}"
     if "A" not in img.img.getbands():
         cmd += " -a enable-chroma-deltaq=1"
+    if slow:
+        cmd += " --speed 1"
 
     cmd += " " + bufer.name
     print(cmd)
