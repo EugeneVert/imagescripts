@@ -137,20 +137,6 @@ def image2video(in_files, args, dimensions=None):
             ffmpegarg["crf"] = args.crf
         vformat = 'mp4'
 
-    elif args.format == 'av1-svt':
-        ffmpegarg = {"c:v": "libsvtav1",
-                     "profile": "1",
-                     #"pix_fmt": "yuv444p", TODO
-                     # "rc": 0,
-                     # "preset": 4,
-                     "tile_rows": 2, "tile_columns": 1, "strict": -2}
-        if args.bitrate_video:
-            ffmpegarg["b:v"] = "0"
-            ffmpegarg["b:v"] = args.bitrate_video
-        else:
-            ffmpegarg["qp"] = args.crf
-        vformat = 'mp4'
-
     # qp 36-38 reduced noise, but quality is good
     elif args.format == 'av1-rav1e':
         ffmpegarg = {"c:v": "librav1e",
@@ -162,6 +148,20 @@ def image2video(in_files, args, dimensions=None):
         vformat = 'mp4'
     elif args.format == 'y4m':
         ffmpegarg = {"pix_fmt": "yuv444p"}
+
+    # elif args.format == 'av1-svt':
+    #     ffmpegarg = {"c:v": "libsvtav1",
+    #                  "profile": "1",
+    #                  # "pix_fmt": "yuv444p",
+    #                  # "rc": 0,
+    #                  # "preset": 4,
+    #                  "tile_rows": 2, "tile_columns": 1, "strict": -2}
+    #     if args.bitrate_video:
+    #         ffmpegarg["b:v"] = "0"
+    #         ffmpegarg["b:v"] = args.bitrate_video
+    #     else:
+    #         ffmpegarg["qp"] = args.crf
+    #     vformat = 'mp4'
 
     if not vformat:
         vformat = args.format
@@ -223,7 +223,6 @@ def list_most_frequent(List):
 
 # TODO Specify name of out.mp4 (image2video)
 def _gen_extract_file(WH, img_size_dict, out_dname, args, vformat):
-    fps = args.fps
     img_list = [os.path.basename(i) for i in sorted(img_size_dict.keys())]
     fullname = img_list[0]
     name, ext = os.path.splitext(fullname)
