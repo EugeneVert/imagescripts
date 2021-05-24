@@ -17,6 +17,7 @@ import time
 from io import BytesIO
 from pathlib import Path
 
+import csv
 from PIL import Image
 from termcolor import colored
 
@@ -68,6 +69,8 @@ CMD_ARGS_ALIASES = {
 
 PERCENTAGE = 0
 
+CVS_PATH = Path("./_res.csv")
+
 
 def parse_args(*args):
     parser = argparse.ArgumentParser(
@@ -95,6 +98,14 @@ def parse_args(*args):
         '--save', dest="save_all", action="store_true",
         help="Don't compare, just save output files",
     )
+    parser.add_argument(
+        '--dry', dest="dry_run", action="store_true",
+        help="Dry run",
+    )
+    parser.add_argument(
+        '--csv', dest="csv", action="store_true",
+        help="Create csv file w/ cmds results size"
+    )
     args = parser.parse_args(*args)
     return args
 
@@ -116,6 +127,15 @@ def main(*args):
     Path.mkdir(Path(args.out_dir), exist_ok=True)
 
     res_cmds_count = {}
+
+    if args.csv:
+        with open(CVS_PATH, "a", newline='') as csv_file:
+            csv_writer = csv.writer(csv_file, delimiter='\t')
+            csv_row = ["", "", ]
+            for cmd in args.cmds:
+                csv_row.append(cmd)
+            csv_writer.writerow(csv_row)
+
     for i in sorted(input_dir_images):
         print()
         print(f"Image: {i}")
@@ -218,8 +238,9 @@ class ImageBuffer():
         self.ex_time = time.time() - time_start
 
 
-def process_image(img, args, res_cmds_count={}):
+def process_image(img: Image, args, res_cmds_count={}):
     """Get input image path, generate output image path with format of best of cmd's."""
+
     enc_img_buffers = []
     for cmd in args.cmds:
         buff = ImageBuffer(cmd)
@@ -229,6 +250,11 @@ def process_image(img, args, res_cmds_count={}):
     img_filesize = Path(img.filename).stat().st_size
     px_count = img.size[0] * img.size[1]
     m = 0
+
+    if args.csv:
+        csv_file = open(CVS_PATH, "a", newline='')
+        csv_writer = csv.writer(csv_file, delimiter='\t')
+        csv_row = [Path(img.filename).name, img_filesize, ]
 
     for i, buff in enumerate(enc_img_buffers):
         buff_filesize = buff.get_size()
@@ -241,6 +267,9 @@ def process_image(img, args, res_cmds_count={}):
         print(colored(
             f"{bite2size(img_filesize)} --> {bite2size(buff_filesize)} {buff_bpp}bpp  {'%.2f' % buff.ex_time}s  " +
             f"{percentage_of_original}%", attrs=['underline']))
+
+        if args.csv:
+            csv_row.append(buff_filesize)
 
         if args.save_all:
             if buff_filesize == 0:
@@ -255,7 +284,11 @@ def process_image(img, args, res_cmds_count={}):
             if buff_filesize != 0:
                 m = buff, buff_filesize
 
-    if args.save_all:
+    if args.csv:
+        csv_writer.writerow(csv_row)
+        csv_file.close()
+
+    if args.save_all or args.dry_run:
         return
 
     if m[0].cmd not in res_cmds_count:
