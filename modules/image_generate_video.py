@@ -129,6 +129,7 @@ def image2video(in_files, args, dimensions=None):
 
     elif args.format == 'av1-aom':
         ffmpegarg = {"c:v": "libaom-av1",
+                     "pix_fmt": "yuv444p10le",
                      "cpu-used": 4, "tiles": "4x2", "strict": -2}  # "row-mt": 1
         if args.bitrate_video:
             ffmpegarg["b:v"] = "0"
@@ -140,6 +141,7 @@ def image2video(in_files, args, dimensions=None):
     # qp 36-38 reduced noise, but quality is good
     elif args.format == 'av1-rav1e':
         ffmpegarg = {"c:v": "librav1e",
+                     "pix_fmt": "yuv444p10le",
                      "tiles": 8, "strict": -2}
         if args.bitrate_video:
             ffmpegarg["b:v"] = args.bitrate_video
@@ -152,7 +154,7 @@ def image2video(in_files, args, dimensions=None):
     # elif args.format == 'av1-svt':
     #     ffmpegarg = {"c:v": "libsvtav1",
     #                  "profile": "1",
-    #                  # "pix_fmt": "yuv444p",
+    #                  # "pix_fmt": "yuv444p10le",
     #                  # "rc": 0,
     #                  # "preset": 4,
     #                  "tile_rows": 2, "tile_columns": 1, "strict": -2}
@@ -167,7 +169,7 @@ def image2video(in_files, args, dimensions=None):
         vformat = args.format
 
     stream = ffmpeg.input(
-        (img_dir + '/*' + img_ext).replace('[', '\[').replace(']', '\]'),
+        (img_dir + '/*' + img_ext).replace('[', r'[').replace(']', r']'),
         pattern_type='glob', framerate=args.fps)
     stream = ffmpeg.filter(
         stream, 'scale', WH[0], WH[1], force_original_aspect_ratio='decrease')
