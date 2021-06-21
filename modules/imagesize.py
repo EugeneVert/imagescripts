@@ -121,7 +121,7 @@ def argument_parser(*args):
         '_____________________________________________\n\n')
     parser.add_argument(
         '-msize', dest='fsize_min',
-        default="100K",
+        default="0K",
         help="min filesize to process. (B | K | M) (K=2^10)")
     parser.add_argument(
         '-percent', dest='percentage',

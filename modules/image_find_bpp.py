@@ -35,8 +35,8 @@ def load_image(i):
     return Image.open(i)
 
 
-def sort_by_bpp(image, path_bpp, args):
-    filename = Path(image.filename)
+def sort_by_bpp(i_path, image, path_bpp, args):
+    filename = Path(i_path)
     px_count = image.size[0] * image.size[1]
     filesize = Path(image.filename).stat().st_size
     bpp = filesize*8/px_count
@@ -87,7 +87,7 @@ def main(*args):
             Path.rename(i, path_nonim / i)
     for i in input_dir_images:
         img = load_image(i)
-        sort_by_bpp(img, path_bpp, args)
+        sort_by_bpp(i, img, path_bpp, args)
 
     if not os.listdir(path_nonim):
         Path.rmdir(path_nonim)

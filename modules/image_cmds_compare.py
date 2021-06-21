@@ -91,6 +91,11 @@ def parse_args(*args):
         "example AVIF avifenc encoding: 'avif: --min 7 --max 8 -a aq-mode=1 -a enable-chroma-deltaq=1'"
     )
     parser.add_argument(
+        '-e', dest="ext", type=str,
+        help="Specify extension of images",
+        default="all"
+    )
+    parser.add_argument(
         '-t', '--tolerance', type=int,
         help="Next command filesize tolerance\n    (default: %(default)s)",
         default=30)
@@ -119,10 +124,13 @@ def main(*args):
         print('by cwd')
         input_dir = Path.cwd()
     print(colored('Path: ' + input_dir.as_posix(), 'yellow'))
-    input_dir_files = \
-        [f for f in input_dir.iterdir() if f.is_file()]
-    input_dir_images = \
-        [f for f in input_dir_files if f.name.endswith(('.png', '.jpg', '.webp'))]
+    if args.ext == "all":
+        input_dir_files = \
+            [f for f in input_dir.iterdir() if f.is_file()]
+        input_dir_images = \
+            [f for f in input_dir_files if f.name.endswith(('.png', '.jpg', '.webp'))]
+    else:
+        input_dir_images = input_dir.glob("*." + args.ext)
 
     Path.mkdir(Path(args.out_dir), exist_ok=True)
 

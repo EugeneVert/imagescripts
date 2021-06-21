@@ -28,7 +28,7 @@ def bite2size(num, suffix='iB'):
         if abs(num) < 1024.0:
             return "%3.1f%s%s" % (num, unit, suffix)
         num /= 1024.0
-    return "%.1f%s%s" % (num, 'Yi', suffix)
+    return "%.1f%s%s" % (num, 'T', suffix)
 
 
 def confirmprompt(promptin):
